@@ -16,6 +16,17 @@ This is the practical tradeoff:
 
 ## Enable lightweight GUI in `petalinux-projects`
 
+The committed lab branch for the PetaLinux submodule already records the lightweight GUI/RDP rootfs intent:
+
+```text
+petalinux-projects branch: kv260-2022.2-kria-metavision-lab
+commit: 9dd1954 Enable lightweight desktop rootfs options
+```
+
+The branch enables `packagegroup-petalinux-matchbox` and records `CONFIG_xrdp` / `CONFIG_xorgxrdp` as the attempted RDP package options. The runtime package feed did not provide usable XRDP packages on the current image, so HDMI Matchbox remains the working desktop path.
+
+To reconfigure manually:
+
 From the project root:
 
 ```bash
@@ -63,4 +74,3 @@ ssh -X root@<board-ip>
 - PetaLinux Package Groups (2022.2)
 - Adding a PetaLinux package group
 - AMD Zynq UltraScale+ graphics options (`x11`, `wayland`, `fbdev`)
-

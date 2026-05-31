@@ -1,0 +1,20 @@
+[submodule "event-vitisai-app"]
+	path = event-vitisai-app
+	url = https://github.com/LogicTronixInc/Kria-Prophesee-Event-VitisAI.git
+	branch = main
+[submodule "fpga-projects"]
+	path = fpga-projects
+	url = https://github.com/prophesee-ai/fpga-projects.git
+	branch = main
+[submodule "linux-sensor-drivers"]
+	path = linux-sensor-drivers
+	url = https://github.com/prophesee-ai/linux-sensor-drivers.git
+	branch = kernel-5.15
+[submodule "petalinux-projects"]
+	path = petalinux-projects
+	url = https://github.com/lachlanchen/petalinux-projects.git
+	branch = kv260-2022.2-kria-metavision-lab
+[submodule "zynq-video-drivers"]
+	path = zynq-video-drivers
+	url = https://github.com/prophesee-ai/zynq-video-drivers.git
+	branch = kernel-5.15

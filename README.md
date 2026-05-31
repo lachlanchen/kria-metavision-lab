@@ -66,11 +66,11 @@ references/kv260-event-camera-app.md
 | --- | --- |
 | `scripts/` | Viewer, launcher, camera scan, desktop, RDP, and recovery helpers |
 | `references/` | Research notes, setup logs, Prophesee links, GUI notes, and deployment docs |
-| `fpga-projects/` | Prophesee FPGA project snapshot for KV260 |
-| `petalinux-projects/` | PetaLinux project snapshot and image-building references |
-| `linux-sensor-drivers/` | IMX636 and GenX320 Linux sensor driver sources |
-| `zynq-video-drivers/` | Zynq video pipeline driver sources used by the kit |
-| `event-vitisai-app/` | LogicTronix / Prophesee / AMD Vitis AI event demo snapshot |
+| `fpga-projects/` | Prophesee FPGA project submodule for KV260 |
+| `petalinux-projects/` | PetaLinux project submodule with the lab GUI/RDP rootfs branch |
+| `linux-sensor-drivers/` | IMX636 and GenX320 Linux sensor driver submodule |
+| `zynq-video-drivers/` | Zynq video pipeline driver submodule used by the kit |
+| `event-vitisai-app/` | LogicTronix / Prophesee / AMD Vitis AI event demo submodule |
 | `i18n/` | Multilingual README pages |
 
 ## Hardware And Runtime
@@ -123,6 +123,7 @@ references/kv260-desktop-stall-recovery.md
 references/kv260-camera-viewer.md
 references/kv260-event-visual-gui-launch.md
 references/gui-petalinux.md
+references/upstream-submodules.md
 references/kv260-rdp-research.md
 references/kv260-ias1-j8-frame-camera.md
 references/github-repo-metadata.md
