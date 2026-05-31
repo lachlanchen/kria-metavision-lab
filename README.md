@@ -13,6 +13,7 @@
 [![Vision](https://img.shields.io/badge/Vision-Event--Based-1f2937?style=for-the-badge)](https://www.prophesee.ai/event-based-metavision-amd-kria-starter-kit/)
 [![Metavision](https://img.shields.io/badge/SDK-Metavision-2563eb?style=for-the-badge)](https://docs.prophesee.ai/amd-kria-starter-kit/)
 [![Flow](https://img.shields.io/badge/Flow-flow.lazying.art-111827?style=for-the-badge)](https://flow.lazying.art)
+[![Maintainer](https://img.shields.io/badge/Maintainer-lazyingart-0ea5e9?style=for-the-badge)](mailto:lachlan@lazying.art)
 
 <img src="docs/assets/kria-metavision-lab-gui.png" alt="Kria Metavision Lab custom event-camera GUI running on the KV260 desktop" width="100%">
 
