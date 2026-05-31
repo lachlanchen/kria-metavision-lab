@@ -40,11 +40,19 @@ The center of this repo is a custom KV260 event camera application built for the
 | Desktop launcher | Adds a simple menu item for the board desktop |
 | Recovery scripts | Clears stale viewer and camera state when the board gets stuck |
 
+The desktop installer creates two launchers:
+
+| Launcher | Behavior |
+| --- | --- |
+| `KV260 Event Camera` | Opens the custom GUI with close, record, folder, filename, and recovery controls |
+| `Metavision Viewer` | Toggles the native Prophesee `metavision_viewer`: click once to open, click again to close |
+
 Main files:
 
 ```text
 scripts/kv260-event-camera-app.py
 scripts/kv260-event-camera-app.sh
+scripts/kv260-metavision-viewer-toggle.sh
 scripts/kv260-install-prophesee-desktop.sh
 scripts/kv260-launch-desktop-viewer.sh
 references/kv260-event-camera-app.md

@@ -645,6 +645,8 @@ class AppCommandServer(threading.Thread):
                     command = conn.recv(64).decode("utf-8", "ignore").strip()
                     if command == "present":
                         GLib.idle_add(self.app.present_from_launcher)
+                    elif command in ("quit", "close"):
+                        GLib.idle_add(self.app.close)
         except Exception as exc:
             self.app.set_status("Launcher command socket failed: %s" % exc)
         finally:
