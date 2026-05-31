@@ -6,6 +6,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TARGET_USER="${KV260_DESKTOP_USER:-petalinux}"
 APP_SOCKET="${KV260_EVENT_CAMERA_APP_SOCKET:-/tmp/kv260-event-camera-app.sock}"
 HELPER="${PROJECT_DIR}/scripts/kv260-event-visual-gui-local.sh"
+LOCK_DIR="/tmp/kv260-metavision-viewer-toggle.lock"
 
 resolve_home() {
   if command -v getent >/dev/null 2>&1; then
@@ -44,6 +45,44 @@ app_pids() {
 
 log() {
   printf '%s %s\n' "$(date -Iseconds)" "$*" >> "${LOG_FILE}"
+}
+
+with_lock() {
+  if mkdir "${LOCK_DIR}" 2>/dev/null; then
+    trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT INT TERM
+    return 0
+  fi
+  return 1
+}
+
+close_metavision_viewer() {
+  "${HELPER}" --stop --force --display "${DISPLAY}" >> "${LOG_FILE}" 2>&1 || true
+
+  tries=0
+  while [ "${tries}" -lt 6 ]; do
+    if [ -z "$(viewer_pids | head -n 1)" ]; then
+      return 0
+    fi
+    sleep 0.5
+    tries=$((tries + 1))
+  done
+
+  for pid in $(viewer_pids); do
+    kill "${pid}" 2>/dev/null || true
+  done
+
+  tries=0
+  while [ "${tries}" -lt 4 ]; do
+    if [ -z "$(viewer_pids | head -n 1)" ]; then
+      return 0
+    fi
+    sleep 0.5
+    tries=$((tries + 1))
+  done
+
+  for pid in $(viewer_pids); do
+    kill -9 "${pid}" 2>/dev/null || true
+  done
 }
 
 close_custom_app() {
@@ -98,9 +137,14 @@ chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
 LOG_FILE="${RUNTIME_DIR}/metavision-toggle.log"
 : >> "${LOG_FILE}"
 
+if ! with_lock; then
+  log "Another toggle invocation is already running; ignoring this click."
+  exit 0
+fi
+
 if [ -n "$(viewer_pids | head -n 1)" ]; then
   log "Metavision viewer running; closing it."
-  "${HELPER}" --stop --force --display "${DISPLAY}" >> "${LOG_FILE}" 2>&1 || true
+  close_metavision_viewer
   exit 0
 fi
 

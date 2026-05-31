@@ -42,8 +42,8 @@ usage() {
 Usage:
   kv260-install-prophesee-desktop.sh [--install|--remove] [--global]
 
-  --install      create local user launcher + desktop shortcut (default)
-  --remove       remove local user launcher + desktop shortcut
+  --install      create local user application launchers (default)
+  --remove       remove local user application launchers and old desktop shortcuts
   --global       also create/remove /usr/share/applications/kv260-event-camera.desktop
                  (requires root privileges)
   --help         show this help
@@ -99,20 +99,6 @@ install_entry() {
     write_desktop_entry "${DESKTOP_FILE}" custom
     write_desktop_entry "${NATIVE_DESKTOP_FILE}" native
   fi
-  mkdir -p "${HOME_SHORTCUT_DIR}"
-  if [ "${DO_GLOBAL}" = "1" ]; then
-    tmp_home_desktop="/tmp/${LAUNCHER_NAME}.home.$$"
-    tmp_native_home_desktop="/tmp/${NATIVE_LAUNCHER_NAME}.home.$$"
-    write_desktop_entry "${tmp_home_desktop}" custom
-    write_desktop_entry "${tmp_native_home_desktop}" native
-    cp "${tmp_home_desktop}" "${HOME_SHORTCUT}"
-    cp "${tmp_native_home_desktop}" "${NATIVE_HOME_SHORTCUT}"
-    rm -f "${tmp_home_desktop}" "${tmp_native_home_desktop}"
-  else
-    cp "${DESKTOP_FILE}" "${HOME_SHORTCUT}"
-    cp "${NATIVE_DESKTOP_FILE}" "${NATIVE_HOME_SHORTCUT}"
-  fi
-  chmod 755 "${HOME_SHORTCUT}" "${NATIVE_HOME_SHORTCUT}"
   update-desktop-database "${DESKTOP_DIR}" >/dev/null 2>&1 || true
 }
 
@@ -123,17 +109,13 @@ install_system_entry() {
   write_desktop_entry "${tmp_native_desktop}" native
 
   if [ "${SUDO_PASSWORD}" ]; then
+    printf '%s\n' "${SUDO_PASSWORD}" | sudo -S rm -f "${ROOT_SHORTCUT}" "${NATIVE_ROOT_SHORTCUT}" >/dev/null 2>&1 || true
     for old_name in ${OLD_LAUNCHER_NAMES}; do
       printf '%s\n' "${SUDO_PASSWORD}" | sudo -S rm -f "/usr/share/applications/${old_name}" >/dev/null 2>&1 || true
       printf '%s\n' "${SUDO_PASSWORD}" | sudo -S rm -f "${ROOT_SHORTCUT_DIR}/${old_name}" "${ROOT_HOME}/.local/share/applications/${old_name}" >/dev/null 2>&1 || true
     done
     printf '%s\n' "${SUDO_PASSWORD}" | sudo -S install -m 644 "${tmp_desktop}" "${SYSTEM_DESKTOP_FILE}" >/dev/null 2>&1
     printf '%s\n' "${SUDO_PASSWORD}" | sudo -S install -m 644 "${tmp_native_desktop}" "${NATIVE_SYSTEM_DESKTOP_FILE}" >/dev/null 2>&1
-    if printf '%s\n' "${SUDO_PASSWORD}" | sudo -S test -d "${ROOT_HOME}" >/dev/null 2>&1; then
-      printf '%s\n' "${SUDO_PASSWORD}" | sudo -S mkdir -p "${ROOT_SHORTCUT_DIR}" >/dev/null 2>&1 || true
-      printf '%s\n' "${SUDO_PASSWORD}" | sudo -S install -m 755 "${tmp_desktop}" "${ROOT_SHORTCUT}" >/dev/null 2>&1 || true
-      printf '%s\n' "${SUDO_PASSWORD}" | sudo -S install -m 755 "${tmp_native_desktop}" "${NATIVE_ROOT_SHORTCUT}" >/dev/null 2>&1 || true
-    fi
     update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
     rm -f "${tmp_desktop}" "${tmp_native_desktop}"
     return 0
@@ -144,13 +126,9 @@ install_system_entry() {
       rm -f "/usr/share/applications/${old_name}"
       rm -f "${ROOT_SHORTCUT_DIR}/${old_name}" "${ROOT_HOME}/.local/share/applications/${old_name}"
     done
+    rm -f "${ROOT_SHORTCUT}" "${NATIVE_ROOT_SHORTCUT}"
     install -m 644 "${tmp_desktop}" "${SYSTEM_DESKTOP_FILE}"
     install -m 644 "${tmp_native_desktop}" "${NATIVE_SYSTEM_DESKTOP_FILE}"
-    if [ -d "${ROOT_HOME}" ]; then
-      mkdir -p "${ROOT_SHORTCUT_DIR}"
-      install -m 755 "${tmp_desktop}" "${ROOT_SHORTCUT}"
-      install -m 755 "${tmp_native_desktop}" "${NATIVE_ROOT_SHORTCUT}"
-    fi
     update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
     rm -f "${tmp_desktop}" "${tmp_native_desktop}"
     return 0
@@ -221,16 +199,10 @@ if [ "${MODE}" = "install" ]; then
     install_system_entry
   fi
   echo "Installed local launcher:"
-  echo "  ${HOME_SHORTCUT}"
-  echo "  ${NATIVE_HOME_SHORTCUT}"
   [ "${DO_GLOBAL}" != "1" ] && echo "  ${DESKTOP_FILE}"
   [ "${DO_GLOBAL}" != "1" ] && echo "  ${NATIVE_DESKTOP_FILE}"
   [ "${DO_GLOBAL}" = "1" ] && echo "  ${SYSTEM_DESKTOP_FILE}"
   [ "${DO_GLOBAL}" = "1" ] && echo "  ${NATIVE_SYSTEM_DESKTOP_FILE}"
-  if [ "${DO_GLOBAL}" = "1" ]; then
-    echo "  ${ROOT_SHORTCUT}"
-    echo "  ${NATIVE_ROOT_SHORTCUT}"
-  fi
 else
   remove_entry
   if [ "${DO_GLOBAL}" = "1" ]; then
