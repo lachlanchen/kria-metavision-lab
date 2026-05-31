@@ -47,6 +47,8 @@ The desktop installer creates two launchers:
 | `KV260 Event Camera` | Opens the custom GUI with close, record, folder, filename, and recovery controls |
 | `Metavision Viewer` | Toggles the native Prophesee `metavision_viewer`: click once to open, click again to close |
 
+The stable desktop setup keeps only those two system Applications entries and removes duplicate Desktop shortcuts. If Matchbox gets stuck with a busy cursor, use the recovery note in `references/kv260-desktop-stall-recovery.md`.
+
 Main files:
 
 ```text
@@ -117,6 +119,7 @@ Useful references:
 ```text
 references/kv260-prophesee-resources.md
 references/kv260-event-camera-app.md
+references/kv260-desktop-stall-recovery.md
 references/kv260-camera-viewer.md
 references/kv260-event-visual-gui-launch.md
 references/gui-petalinux.md

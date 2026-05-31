@@ -5,6 +5,7 @@
 - 2026-05-27
 - Lifecycle update: 2026-05-30
 - Superseded launcher update: 2026-05-30
+- Desktop stall recovery update: 2026-05-31
 
 ## What was done
 
@@ -14,7 +15,8 @@ Current preferred desktop launcher: `KV260 Event Camera`, documented in `referen
 
 Current on-board GUI/X state at the time of test:
 
-- `X :0` server process was active (`ps -ef` showed `X :0 vt7`).
+- `xserver-nodm.service` was active and owns the full X/Matchbox session.
+- `X :0` server process was active.
 - `/tmp/.X11-unix/X0` existed (socket present).
 - Matchbox process chain was present: `matchbox-window-manager`, `matchbox-desktop`, `matchbox-panel`.
 - `metavision_viewer` starts on `DISPLAY=:0`.
@@ -126,7 +128,7 @@ If you still see lag:
 
 ## Desktop launcher install
 
-Create a desktop shortcut and Applications menu item for the Prophesee viewer:
+Create or refresh the Applications menu entries:
 
 ```bash
 cd ~/Projects/kria-kv260-starter
@@ -144,6 +146,21 @@ The `.desktop` launchers run the desktop wrapper, which delegates to the local G
 ```bash
 ./scripts/kv260-launch-desktop-viewer.sh --live
 ./scripts/kv260-launch-desktop-viewer.sh --record
+```
+
+Current intended installed launcher files:
+
+```text
+/usr/share/applications/kv260-event-camera.desktop
+/usr/share/applications/kv260-metavision-viewer.desktop
+```
+
+There should be no duplicate KV260/Metavision/Prophesee desktop shortcuts in `/home/petalinux/Desktop` or `/home/root/Desktop`.
+
+The full desktop stall recovery note is in:
+
+```text
+references/kv260-desktop-stall-recovery.md
 ```
 
 If the menu item appears to do nothing, run this recovery sequence once on the board:
@@ -244,6 +261,41 @@ A recent issue was a dead/relaunch loop from stale viewer state and mixed runtim
 - stop logic now validates PID-file ownership and falls back to name-based kill
 - `.desktop` launcher now disables startup notify to avoid the 10s busy spinner (`StartupNotify=false`)
 - `.desktop` launcher now includes `StartupWMClass=metavision_viewer`
+
+## Desktop busy/stall recovery
+
+On 2026-05-31 the local desktop became busy and stopped opening applications. The cause found was an orphaned `matchbox-desktop` process outside the active `xserver-nodm.service` session.
+
+Successful recovery:
+
+```bash
+rm -f /tmp/kv260-event-camera-app.lock /tmp/kv260-metavision-viewer-toggle.lock 2>/dev/null || true
+
+orphan_pids="$(ps -e -o pid=,ppid=,comm= | awk '$2 == 1 && $3 == "matchbox-deskto" { print $1 }')"
+if [ -n "${orphan_pids}" ]; then
+  printf '%s\n' '<password>' | sudo -S kill ${orphan_pids} >/dev/null 2>&1 || true
+fi
+
+printf '%s\n' '<password>' | sudo -S systemctl restart xserver-nodm
+sleep 5
+```
+
+Healthy state after recovery:
+
+```text
+xserver-nodm.service active
+xinit -> Xorg :0
+matchbox-window-manager
+matchbox-desktop
+matchbox-panel
+```
+
+Both launchers were then tested:
+
+```text
+KV260 Event Camera opens and exits through its quit socket.
+Metavision Viewer opens the native viewer and closes on the next launcher click.
+```
 
 Use these commands when the window becomes unresponsive or reopens unexpectedly:
 

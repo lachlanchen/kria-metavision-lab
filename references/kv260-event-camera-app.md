@@ -16,24 +16,46 @@ Those older entries were removed from the installed application menus because re
 
 ## Installed Launcher
 
-The desktop/menu entry is:
+The primary desktop/menu entry is:
 
 ```text
 KV260 Event Camera
 ```
 
-Installed files:
+The native SDK viewer is kept as a separate one-click toggle:
 
 ```text
-/usr/share/applications/kv260-event-camera.desktop       # single applications-menu entry
-/home/root/Desktop/kv260-event-camera.desktop            # root-owned Matchbox desktop shortcut
-/home/petalinux/Desktop/kv260-event-camera.desktop       # petalinux Desktop copy
+Metavision Viewer
 ```
 
-Launcher command:
+Current installed files:
+
+```text
+/usr/share/applications/kv260-event-camera.desktop
+/usr/share/applications/kv260-metavision-viewer.desktop
+```
+
+The installer intentionally does not leave duplicate launcher copies in:
+
+```text
+/home/petalinux/Desktop
+/home/root/Desktop
+/home/petalinux/.local/share/applications
+/home/root/.local/share/applications
+```
+
+That avoids Matchbox showing duplicate entries or launching stale commands from old desktop shortcuts.
+
+Custom GUI launcher command:
 
 ```sh
 /home/petalinux/Projects/kria-kv260-starter/scripts/kv260-event-camera-app.sh
+```
+
+Native viewer toggle command:
+
+```sh
+/home/petalinux/Projects/kria-kv260-starter/scripts/kv260-metavision-viewer-toggle.sh
 ```
 
 The wrapper runs the GUI as:
@@ -108,7 +130,24 @@ cd /home/petalinux/Projects/kria-kv260-starter
 KV260_SUDO_PASSWORD=<password> ./scripts/kv260-install-prophesee-desktop.sh --install --global
 ```
 
-This installs the single `KV260 Event Camera` menu entry, installs one shortcut for the root-owned Matchbox desktop, and removes the old three Metavision launchers from local and system application folders.
+This installs the two system Applications menu entries, removes old `Metavision Event Viewer` / `Metavision Event Recorder` / `Metavision Control Panel` entries, and removes stale Desktop shortcut copies.
+
+Expected installed entries after refresh:
+
+```sh
+find /home/petalinux/.local/share/applications /home/petalinux/Desktop \
+     /home/root/.local/share/applications /home/root/Desktop \
+     /usr/share/applications \
+     -maxdepth 1 \( -iname '*kv260*' -o -iname '*metavision*' -o -iname '*prophesee*' \) \
+     -type f 2>/dev/null | sort
+```
+
+Expected result:
+
+```text
+/usr/share/applications/kv260-event-camera.desktop
+/usr/share/applications/kv260-metavision-viewer.desktop
+```
 
 ## Manual Launch
 
@@ -152,6 +191,14 @@ GUI launch smoke test:
 ```text
 pid=<python process>
 Camera stream open: /dev/video0 (1280x720 PSE2)
+```
+
+Launcher lifecycle smoke tests after the desktop reset:
+
+```text
+KV260 Event Camera opens, accepts the local quit socket command, and exits.
+Metavision Viewer opens the native /usr/bin/metavision_viewer process, then the same launcher closes it.
+Only the two system Applications entries remain.
 ```
 
 ## Native Viewer Scripts
