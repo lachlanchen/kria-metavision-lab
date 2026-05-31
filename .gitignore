@@ -1,0 +1,8 @@
+.env
+*.pyc
+__pycache__/
+*.raw
+*.pse2.raw
+*.json.tmp
+event-visual/
+recordings/
