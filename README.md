@@ -14,6 +14,10 @@
 [![Metavision](https://img.shields.io/badge/SDK-Metavision-2563eb?style=for-the-badge)](https://docs.prophesee.ai/amd-kria-starter-kit/)
 [![Flow](https://img.shields.io/badge/Flow-flow.lazying.art-111827?style=for-the-badge)](https://flow.lazying.art)
 
+<img src="docs/assets/kria-metavision-lab-gui.png" alt="Kria Metavision Lab custom event-camera GUI running on the KV260 desktop" width="100%">
+
+<sub>Custom KV260 Event Camera GUI running on the local PetaLinux desktop with live Prophesee event data, recording controls, capture naming, and camera recovery tools.</sub>
+
 </div>
 
 ## Why This Exists
