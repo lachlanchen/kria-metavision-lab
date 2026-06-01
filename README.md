@@ -124,6 +124,7 @@ references/kv260-camera-viewer.md
 references/kv260-event-visual-gui-launch.md
 references/gui-petalinux.md
 references/upstream-submodules.md
+references/kv260-disk-usage.md
 references/kv260-rdp-research.md
 references/kv260-ias1-j8-frame-camera.md
 references/github-repo-metadata.md
