@@ -49,6 +49,13 @@ The desktop installer creates two launchers:
 
 The stable desktop setup keeps only those two system Applications entries and removes duplicate Desktop shortcuts. If Matchbox gets stuck with a busy cursor, use the recovery note in `references/kv260-desktop-stall-recovery.md`.
 
+Windows shortcuts are also available for one-click SSH launch:
+
+| Shortcut | Behavior |
+| --- | --- |
+| `KV260 Event Camera - Board Desktop` | Opens or raises the custom GUI on the KV260 HDMI desktop from Windows |
+| `KV260 Event Camera - Windows X11` | Starts VcXsrv and opens the custom GUI on Windows through SSH X forwarding |
+
 Main files:
 
 ```text
@@ -120,6 +127,7 @@ Useful references:
 references/kv260-prophesee-resources.md
 references/kv260-event-camera-app.md
 references/kv260-desktop-stall-recovery.md
+references/kv260-windows-shortcuts-x11.md
 references/kv260-native-metavision-viewer-close-behavior.md
 references/kv260-camera-viewer.md
 references/kv260-event-visual-gui-launch.md

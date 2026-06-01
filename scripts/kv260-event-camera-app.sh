@@ -5,6 +5,7 @@ WORKDIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET_USER="${KV260_DESKTOP_USER:-petalinux}"
 LOG_FILE_OVERRIDE="${KV260_EVENT_CAMERA_APP_LOG:-}"
 APP_SOCKET="${KV260_EVENT_CAMERA_APP_SOCKET:-/tmp/kv260-event-camera-app.sock}"
+APP_LOCK="${KV260_EVENT_CAMERA_APP_LOCK_PATH:-/tmp/kv260-event-camera-app.lock}"
 FOREGROUND="${KV260_EVENT_CAMERA_APP_FOREGROUND:-0}"
 
 resolve_home() {
@@ -41,6 +42,8 @@ export LOGNAME="${TARGET_USER}"
 export LANG=C
 export LC_ALL=C
 export NO_AT_BRIDGE=1
+export KV260_EVENT_CAMERA_APP_SOCKET="${APP_SOCKET}"
+export KV260_EVENT_CAMERA_APP_LOCK_PATH="${APP_LOCK}"
 LOG_FILE="${LOG_FILE_OVERRIDE:-${HOME}/.cache/kv260-event-camera/app.log}"
 export XAUTHORITY="${XAUTHORITY:-${HOME}/.Xauthority}"
 if [ ! -r "${XAUTHORITY}" ] && [ -r /home/petalinux/.Xauthority ]; then
@@ -84,6 +87,7 @@ if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
     exec runuser -u "${TARGET_USER}" -m -- env \
       HOME="${HOME}" USER="${USER}" LOGNAME="${LOGNAME}" DISPLAY="${DISPLAY}" XAUTHORITY="${XAUTHORITY}" \
       LANG="${LANG}" LC_ALL="${LC_ALL}" NO_AT_BRIDGE="${NO_AT_BRIDGE}" \
+      KV260_EVENT_CAMERA_APP_SOCKET="${APP_SOCKET}" KV260_EVENT_CAMERA_APP_LOCK_PATH="${APP_LOCK}" \
       KV260_EVENT_CAMERA_APP_LOG_FILE="${LOG_FILE}" \
       sh -c 'exec "$@" >> "${KV260_EVENT_CAMERA_APP_LOG_FILE}" 2>&1' sh \
       python3 "${WORKDIR}/kv260-event-camera-app.py"
@@ -92,6 +96,7 @@ if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
   setsid -f runuser -u "${TARGET_USER}" -m -- env \
     HOME="${HOME}" USER="${USER}" LOGNAME="${LOGNAME}" DISPLAY="${DISPLAY}" XAUTHORITY="${XAUTHORITY}" \
     LANG="${LANG}" LC_ALL="${LC_ALL}" NO_AT_BRIDGE="${NO_AT_BRIDGE}" \
+    KV260_EVENT_CAMERA_APP_SOCKET="${APP_SOCKET}" KV260_EVENT_CAMERA_APP_LOCK_PATH="${APP_LOCK}" \
     KV260_EVENT_CAMERA_APP_LOG_FILE="${LOG_FILE}" \
     sh -c 'exec "$@" >> "${KV260_EVENT_CAMERA_APP_LOG_FILE}" 2>&1' sh \
     python3 "${WORKDIR}/kv260-event-camera-app.py"

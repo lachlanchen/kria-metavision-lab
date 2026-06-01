@@ -20,6 +20,16 @@ Run `metavision_viewer` on the KV260 board display from Windows <windows-ip> usi
 
 ## OpenSSH client flow (recommended)
 
+For the custom app, prefer the maintained Windows shortcuts documented in:
+
+```text
+references/kv260-windows-shortcuts-x11.md
+```
+
+Those shortcuts start VcXsrv and run `scripts/kv260-event-camera-x11.sh` automatically.
+
+Manual flow:
+
 1. Start VcXsrv with default local display (`localhost:0`).
 2. Open PowerShell:
 
