@@ -105,7 +105,7 @@ The current app also decodes EVT2.1 timestamps and renders with a Metavision-sty
 - `Palette`: dark, light, gray, or cool/warm event palette.
 - `Polarity`: show all events, only ON events, or only OFF events.
 - `Point radius`: event dot size. Increase this if the view looks too sparse.
-- `Event trail`: optional display persistence after the current accumulation window.
+- `Event trail`: smooth display fade after the current accumulation window. The default is `0.990`, which avoids a sudden dark screen during quiet periods without keeping stale events forever.
 - `Show OSD overlay`: shows source, rate, recording/playback state, and accumulation on the preview.
 
 The `Biases` tab reads daily-use controls from `/dev/v4l-subdev3`:
@@ -201,7 +201,7 @@ existing .pse2.raw replay decode: 59459 events from first 512 KiB, nonblank rend
 bias probe: bias_diff_on/off, bias_hpf, bias_fo, bias_refr, bias_diff found on /dev/v4l-subdev3
 GUI smoke: starts on DISPLAY=:0 with auto-open disabled and exits through the local command socket
 live stream smoke: /dev/video0 opened, 71140 events, 31 buffers, 31 frames in about 3 seconds
-idle preview regression: after 50 ms with a 10 ms accumulation window, stale events clear instead of freezing
+idle preview regression: stale frames no longer freeze; with default trail `0.990`, events fade gradually during quiet periods instead of going dark immediately
 ```
 
 Direct stream test:

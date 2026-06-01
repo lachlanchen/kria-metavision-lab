@@ -336,7 +336,7 @@ class EventFrameRenderer:
         self.palette_name = "Dark"
         self.polarity_mode = "All"
         self.point_radius = 1
-        self.trail = 0.0
+        self.trail = 0.99
         self.show_osd = True
         self.last_frame = None
         self.last_batch_wall_time = 0.0
@@ -380,7 +380,7 @@ class EventFrameRenderer:
             if point_radius is not None:
                 self.point_radius = max(0, min(4, int(point_radius)))
             if trail is not None:
-                self.trail = max(0.0, min(0.95, float(trail)))
+                self.trail = max(0.0, min(0.995, float(trail)))
             if osd is not None:
                 self.show_osd = bool(osd)
 
@@ -1030,8 +1030,9 @@ class EventCameraApp(Gtk.Window):
         grid.attach(self.radius_spin, 3, 1, 1, 1)
 
         grid.attach(Gtk.Label(label="Event trail"), 4, 1, 1, 1)
-        self.trail_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 0.95, 0.05)
-        self.trail_scale.set_value(0.0)
+        self.trail_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 0.995, 0.005)
+        self.trail_scale.set_digits(3)
+        self.trail_scale.set_value(0.99)
         self.trail_scale.set_hexpand(True)
         self.trail_scale.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.trail_scale, 5, 1, 2, 1)
@@ -1212,7 +1213,7 @@ class EventCameraApp(Gtk.Window):
             palette=palette,
             polarity=polarity,
             point_radius=self.radius_spin.get_value() if hasattr(self, "radius_spin") else 1,
-            trail=self.trail_scale.get_value() if hasattr(self, "trail_scale") else 0.0,
+            trail=self.trail_scale.get_value() if hasattr(self, "trail_scale") else 0.99,
             osd=self.osd_check.get_active() if hasattr(self, "osd_check") else True,
         )
 
