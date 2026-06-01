@@ -24,6 +24,7 @@ Board-side setup:
 - installs the board Applications menu launchers:
   - `KV260 Event Camera`
   - `Metavision Viewer`
+  - `KV260 File Transfer`
 - runs the event camera validation script.
 
 Optional Windows setup:
@@ -32,6 +33,7 @@ Optional Windows setup:
 - copies `scripts/windows/*` to Windows,
 - runs `Install-KV260WindowsShortcuts.ps1`,
 - verifies the Windows control center scripts with `-CheckOnly`.
+The Windows control center includes the native `Files` tab for Windows/KV260 transfers.
 
 ## Basic Board Setup
 
@@ -127,6 +129,9 @@ l3afpad
 rxvt
 xinput-calibrator
 xauth
+openssh-ssh
+openssh-scp
+sshpass
 v4l-utils
 python3-numpy
 python3-pillow
@@ -196,4 +201,10 @@ Stop all viewers:
 
 ```sh
 ./scripts/kv260-event-camera-switch.sh --stop-all
+```
+
+Open the board-side file transfer GUI:
+
+```sh
+./scripts/kv260-file-transfer-gui.sh
 ```

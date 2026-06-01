@@ -290,6 +290,9 @@ install_packages() {
     rxvt \
     xinput-calibrator \
     xauth \
+    openssh-ssh \
+    openssh-scp \
+    sshpass \
     v4l-utils \
     python3-numpy \
     python3-pillow \
@@ -492,6 +495,7 @@ Project:
 Board launchers:
   KV260 Event Camera
   Metavision Viewer
+  KV260 File Transfer
 
 Recording folder:
   ${PROJECT_DIR}/recordings/event-camera
@@ -505,6 +509,9 @@ Open on board display:
 
 Stop all viewers:
   ./scripts/kv260-event-camera-switch.sh --stop-all
+
+Open file transfer:
+  ./scripts/kv260-file-transfer-gui.sh
 
 EOF
 }

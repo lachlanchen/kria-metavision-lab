@@ -17,6 +17,10 @@ function Get-SshExe {
     return (Get-Command ssh.exe -ErrorAction Stop).Source
 }
 
+function Get-ScpExe {
+    return (Get-Command scp.exe -ErrorAction Stop).Source
+}
+
 function Invoke-KV260Ssh {
     param([string]$RemoteCommand)
     $ssh = Get-SshExe
@@ -40,6 +44,7 @@ if ($CheckOnly) {
         exit 1
     }
     Write-Host "SSH=$(Get-SshExe)"
+    Write-Host "SCP=$(Get-ScpExe)"
     Write-Host "BOARD_SCRIPT=$BoardScript"
     Write-Host "X11_SCRIPT=$X11Script"
     exit 0
@@ -47,11 +52,282 @@ if ($CheckOnly) {
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName Microsoft.VisualBasic
 
 function Add-Log {
     param([string]$Text)
     $timestamp = Get-Date -Format "HH:mm:ss"
     $script:OutputBox.AppendText("[$timestamp] $Text`r`n")
+}
+
+function Format-FileSize {
+    param([object]$Length)
+    if ($null -eq $Length) {
+        return ""
+    }
+    $size = [double]$Length
+    $units = @("B", "KB", "MB", "GB", "TB")
+    $index = 0
+    while ($size -ge 1024 -and $index -lt ($units.Count - 1)) {
+        $size = $size / 1024
+        $index++
+    }
+    if ($index -eq 0) {
+        return "{0:N0} B" -f $size
+    }
+    return "{0:N1} {1}" -f $size, $units[$index]
+}
+
+function ConvertTo-RemoteShellLiteral {
+    param([string]$Value)
+    return "'" + $Value.Replace("'", "'\''") + "'"
+}
+
+function ConvertTo-ScpRemoteSpec {
+    param([string]$RemotePath)
+    return "${HostAlias}:$(ConvertTo-RemoteShellLiteral $RemotePath)"
+}
+
+function Invoke-ScpCopy {
+    param([string[]]$Arguments)
+    $scp = Get-ScpExe
+    Add-Log "scp $($Arguments -join ' ')"
+    $output = & $scp @Arguments 2>&1
+    $code = $LASTEXITCODE
+    if ($code -ne 0) {
+        throw "scp exited with code $code`r`n$($output -join "`r`n")"
+    }
+    if ($output) {
+        Add-Log ($output -join "`r`n")
+    }
+}
+
+function Invoke-FileAction {
+    param([scriptblock]$Action)
+    try {
+        $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+        [System.Windows.Forms.Application]::DoEvents()
+        & $Action
+    } catch {
+        Add-Log "Files: $($_.Exception.Message)"
+        Show-Message $_.Exception.Message "KV260 File Transfer"
+    } finally {
+        $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    }
+}
+
+function New-FileListView {
+    $list = New-Object System.Windows.Forms.ListView
+    $list.View = [System.Windows.Forms.View]::Details
+    $list.FullRowSelect = $true
+    $list.MultiSelect = $true
+    $list.HideSelection = $false
+    $list.AllowDrop = $true
+    $list.Anchor = "Top,Bottom,Left,Right"
+    [void]$list.Columns.Add("Name", 250)
+    [void]$list.Columns.Add("Type", 72)
+    [void]$list.Columns.Add("Size", 82)
+    [void]$list.Columns.Add("Modified", 132)
+    return $list
+}
+
+function Add-FileListRow {
+    param(
+        [System.Windows.Forms.ListView]$List,
+        [string]$Name,
+        [bool]$IsDirectory,
+        [object]$Size,
+        [object]$Modified,
+        [string]$Path
+    )
+    $item = New-Object System.Windows.Forms.ListViewItem($Name)
+    [void]$item.SubItems.Add($(if ($IsDirectory) { "Folder" } else { "File" }))
+    [void]$item.SubItems.Add($(if ($IsDirectory) { "" } else { Format-FileSize $Size }))
+    $modifiedText = ""
+    if ($Modified) {
+        try {
+            $modifiedText = ([DateTime]$Modified).ToString("yyyy-MM-dd HH:mm")
+        } catch {
+            $modifiedText = [string]$Modified
+        }
+    }
+    [void]$item.SubItems.Add($modifiedText)
+    $item.Tag = [pscustomobject]@{
+        Path = $Path
+        IsDirectory = $IsDirectory
+    }
+    [void]$List.Items.Add($item)
+}
+
+function Get-SelectedFileTags {
+    param([System.Windows.Forms.ListView]$List)
+    $tags = @()
+    foreach ($item in $List.SelectedItems) {
+        $tags += $item.Tag
+    }
+    return $tags
+}
+
+function Refresh-LocalFiles {
+    Invoke-FileAction {
+        $path = $script:LocalPathText.Text.Trim()
+        if (-not (Test-Path -LiteralPath $path)) {
+            throw "Local path does not exist: $path"
+        }
+        $resolved = (Resolve-Path -LiteralPath $path).Path
+        $script:LocalPathText.Text = $resolved
+        $script:LocalList.Items.Clear()
+        Get-ChildItem -Force -LiteralPath $resolved |
+            Sort-Object -Property @{ Expression = { $_.PSIsContainer }; Descending = $true }, Name |
+            ForEach-Object {
+                Add-FileListRow `
+                    -List $script:LocalList `
+                    -Name $_.Name `
+                    -IsDirectory $_.PSIsContainer `
+                    -Size $_.Length `
+                    -Modified $_.LastWriteTime `
+                    -Path $_.FullName
+            }
+        Add-Log "Local refreshed: $resolved"
+    }
+}
+
+function Get-KV260Directory {
+    param([string]$Path)
+    $python = @"
+import json, os, sys
+p = os.path.abspath(sys.argv[1])
+items = []
+for name in sorted(os.listdir(p), key=lambda n: (not os.path.isdir(os.path.join(p, n)), n.lower())):
+    q = os.path.join(p, name)
+    try:
+        s = os.lstat(q)
+    except OSError:
+        continue
+    items.append({
+        "name": name,
+        "path": q,
+        "is_dir": os.path.isdir(q),
+        "size": s.st_size,
+        "mtime": s.st_mtime,
+    })
+print(json.dumps({"path": p, "parent": os.path.dirname(p), "items": items}))
+"@
+    $command = "python3 -c $(ConvertTo-RemoteShellLiteral $python) $(ConvertTo-RemoteShellLiteral $Path)"
+    $json = Invoke-KV260Ssh $command
+    return ($json | ConvertFrom-Json)
+}
+
+function Refresh-RemoteFiles {
+    Invoke-FileAction {
+        $path = $script:RemotePathText.Text.Trim()
+        $data = Get-KV260Directory $path
+        $script:RemotePathText.Text = $data.path
+        $script:RemoteList.Items.Clear()
+        foreach ($entry in @($data.items)) {
+            $modified = $null
+            if ($entry.mtime) {
+                $modified = ([DateTimeOffset]::FromUnixTimeSeconds([int64]$entry.mtime)).LocalDateTime
+            }
+            Add-FileListRow `
+                -List $script:RemoteList `
+                -Name $entry.name `
+                -IsDirectory ([bool]$entry.is_dir) `
+                -Size $entry.size `
+                -Modified $modified `
+                -Path $entry.path
+        }
+        Add-Log "KV260 refreshed: $($data.path)"
+    }
+}
+
+function Refresh-FileBrowsers {
+    Refresh-LocalFiles
+    Refresh-RemoteFiles
+}
+
+function Set-LocalParent {
+    $path = $script:LocalPathText.Text.Trim()
+    $parent = Split-Path -Parent $path
+    if ($parent) {
+        $script:LocalPathText.Text = $parent
+        Refresh-LocalFiles
+    }
+}
+
+function Set-RemoteParent {
+    $path = $script:RemotePathText.Text.Trim().TrimEnd("/")
+    $parent = Split-Path -Parent $path
+    if ($parent) {
+        $script:RemotePathText.Text = $parent.Replace("\", "/")
+        Refresh-RemoteFiles
+    }
+}
+
+function Upload-LocalPaths {
+    param([string[]]$Paths)
+    if (-not $Paths -or $Paths.Count -eq 0) {
+        Add-Log "Upload skipped: no local files selected."
+        return
+    }
+    Invoke-FileAction {
+        $remoteDir = $script:RemotePathText.Text.Trim()
+        $dest = (ConvertTo-ScpRemoteSpec $remoteDir) + "/"
+        foreach ($path in $Paths) {
+            Invoke-ScpCopy -Arguments @("-O", "-r", $path, $dest)
+        }
+        Add-Log "Uploaded $($Paths.Count) item(s) to $remoteDir"
+        Refresh-RemoteFiles
+    }
+}
+
+function Download-RemotePaths {
+    param([string[]]$Paths)
+    if (-not $Paths -or $Paths.Count -eq 0) {
+        Add-Log "Download skipped: no KV260 files selected."
+        return
+    }
+    Invoke-FileAction {
+        $localDir = $script:LocalPathText.Text.Trim()
+        foreach ($path in $Paths) {
+            Invoke-ScpCopy -Arguments @("-O", "-r", (ConvertTo-ScpRemoteSpec $path), $localDir)
+        }
+        Add-Log "Downloaded $($Paths.Count) item(s) to $localDir"
+        Refresh-LocalFiles
+    }
+}
+
+function Upload-SelectedFiles {
+    $paths = @(Get-SelectedFileTags $script:LocalList | ForEach-Object { $_.Path })
+    Upload-LocalPaths $paths
+}
+
+function Download-SelectedFiles {
+    $paths = @(Get-SelectedFileTags $script:RemoteList | ForEach-Object { $_.Path })
+    Download-RemotePaths $paths
+}
+
+function Browse-LocalFolder {
+    $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dialog.SelectedPath = $script:LocalPathText.Text
+    if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        $script:LocalPathText.Text = $dialog.SelectedPath
+        Refresh-LocalFiles
+    }
+}
+
+function New-RemoteFolder {
+    $name = [Microsoft.VisualBasic.Interaction]::InputBox("Folder name:", "New KV260 Folder", "new-folder")
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        return
+    }
+    Invoke-FileAction {
+        $base = $script:RemotePathText.Text.Trim().TrimEnd("/")
+        $target = "$base/$name"
+        Invoke-KV260Ssh "mkdir -p $(ConvertTo-RemoteShellLiteral $target)" | Out-Null
+        Add-Log "Created remote folder: $target"
+        Refresh-RemoteFiles
+    }
 }
 
 function Show-Message {
@@ -278,8 +554,8 @@ function Shutdown-KV260 {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "KV260 Control Center"
 $form.StartPosition = "CenterScreen"
-$form.Size = New-Object System.Drawing.Size(820, 640)
-$form.MinimumSize = New-Object System.Drawing.Size(780, 600)
+$form.Size = New-Object System.Drawing.Size(1040, 760)
+$form.MinimumSize = New-Object System.Drawing.Size(960, 680)
 $form.BackColor = [System.Drawing.Color]::FromArgb(246, 248, 251)
 
 $title = New-Object System.Windows.Forms.Label
@@ -295,7 +571,7 @@ $subtitle.Text = "Launch the event camera, board tools, notebooks, and system ac
 $subtitle.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
 $subtitle.Location = New-Object System.Drawing.Point(26, 58)
-$subtitle.Size = New-Object System.Drawing.Size(720, 22)
+$subtitle.Size = New-Object System.Drawing.Size(940, 22)
 $form.Controls.Add($subtitle)
 
 function New-Button {
@@ -337,7 +613,7 @@ function New-FlowPanel {
 
 $tabs = New-Object System.Windows.Forms.TabControl
 $tabs.Location = New-Object System.Drawing.Point(24, 92)
-$tabs.Size = New-Object System.Drawing.Size(760, 294)
+$tabs.Size = New-Object System.Drawing.Size(980, 416)
 $tabs.Anchor = "Top,Left,Right"
 $tabs.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($tabs)
@@ -368,6 +644,186 @@ Add-ButtonToPanel $appsPanel "Appearance" ([System.Drawing.Color]::FromArgb(124,
 Add-ButtonToPanel $appsPanel "Touch Calibrator" ([System.Drawing.Color]::FromArgb(217, 119, 6)) { Open-RemoteApp "touch-calibrator" "Touch Calibrator" }
 Add-ButtonToPanel $appsPanel "Preferred Apps" ([System.Drawing.Color]::FromArgb(8, 145, 178)) { Open-RemoteApp "preferred-apps" "Preferred Applications" }
 Add-ButtonToPanel $appsPanel "Desktop Preferences" ([System.Drawing.Color]::FromArgb(67, 56, 202)) { Open-RemoteApp "desktop-preferences" "Desktop Preferences" }
+Add-ButtonToPanel $appsPanel "File Transfer GUI" ([System.Drawing.Color]::FromArgb(37, 99, 235)) { Open-RemoteApp "file-transfer" "KV260 File Transfer" }
+
+$filesTab = New-Object System.Windows.Forms.TabPage
+$filesTab.Text = "Files"
+$tabs.TabPages.Add($filesTab)
+
+$filesHeader = New-Object System.Windows.Forms.Label
+$filesHeader.Text = "Copy files and folders between Windows and the KV260. Multi-select rows, use the buttons, or drag between panes."
+$filesHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$filesHeader.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
+$filesHeader.Location = New-Object System.Drawing.Point(14, 12)
+$filesHeader.Size = New-Object System.Drawing.Size(920, 22)
+$filesHeader.Anchor = "Top,Left,Right"
+$filesTab.Controls.Add($filesHeader)
+
+$localLabel = New-Object System.Windows.Forms.Label
+$localLabel.Text = "Windows"
+$localLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$localLabel.Location = New-Object System.Drawing.Point(14, 42)
+$localLabel.Size = New-Object System.Drawing.Size(120, 22)
+$filesTab.Controls.Add($localLabel)
+
+$remoteLabel = New-Object System.Windows.Forms.Label
+$remoteLabel.Text = "KV260"
+$remoteLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$remoteLabel.Location = New-Object System.Drawing.Point(500, 42)
+$remoteLabel.Size = New-Object System.Drawing.Size(120, 22)
+$filesTab.Controls.Add($remoteLabel)
+
+$script:LocalPathText = New-Object System.Windows.Forms.TextBox
+$script:LocalPathText.Text = [Environment]::GetFolderPath("MyDocuments")
+$script:LocalPathText.Location = New-Object System.Drawing.Point(14, 68)
+$script:LocalPathText.Size = New-Object System.Drawing.Size(354, 24)
+$script:LocalPathText.Anchor = "Top,Left"
+$script:LocalPathText.Add_KeyDown({
+    if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
+        Refresh-LocalFiles
+        $_.SuppressKeyPress = $true
+    }
+})
+$filesTab.Controls.Add($script:LocalPathText)
+
+$localBrowse = New-Button "Browse" ([System.Drawing.Color]::FromArgb(14, 116, 144))
+$localBrowse.Size = New-Object System.Drawing.Size(84, 28)
+$localBrowse.Location = New-Object System.Drawing.Point(374, 66)
+$localBrowse.Add_Click({ Browse-LocalFolder })
+$filesTab.Controls.Add($localBrowse)
+
+$localUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105))
+$localUp.Size = New-Object System.Drawing.Size(48, 28)
+$localUp.Location = New-Object System.Drawing.Point(464, 66)
+$localUp.Add_Click({ Set-LocalParent })
+$filesTab.Controls.Add($localUp)
+
+$script:RemotePathText = New-Object System.Windows.Forms.TextBox
+$script:RemotePathText.Text = $RemoteProject
+$script:RemotePathText.Location = New-Object System.Drawing.Point(500, 68)
+$script:RemotePathText.Size = New-Object System.Drawing.Size(344, 24)
+$script:RemotePathText.Anchor = "Top,Left,Right"
+$script:RemotePathText.Add_KeyDown({
+    if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
+        Refresh-RemoteFiles
+        $_.SuppressKeyPress = $true
+    }
+})
+$filesTab.Controls.Add($script:RemotePathText)
+
+$remoteRefresh = New-Button "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105))
+$remoteRefresh.Size = New-Object System.Drawing.Size(82, 28)
+$remoteRefresh.Location = New-Object System.Drawing.Point(850, 66)
+$remoteRefresh.Anchor = "Top,Right"
+$remoteRefresh.Add_Click({ Refresh-RemoteFiles })
+$filesTab.Controls.Add($remoteRefresh)
+
+$remoteUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105))
+$remoteUp.Size = New-Object System.Drawing.Size(48, 28)
+$remoteUp.Location = New-Object System.Drawing.Point(938, 66)
+$remoteUp.Anchor = "Top,Right"
+$remoteUp.Add_Click({ Set-RemoteParent })
+$filesTab.Controls.Add($remoteUp)
+
+$script:LocalList = New-FileListView
+$script:LocalList.Location = New-Object System.Drawing.Point(14, 102)
+$script:LocalList.Size = New-Object System.Drawing.Size(472, 220)
+$script:LocalList.Add_DoubleClick({
+    if ($script:LocalList.SelectedItems.Count -eq 1) {
+        $tag = $script:LocalList.SelectedItems[0].Tag
+        if ($tag.IsDirectory) {
+            $script:LocalPathText.Text = $tag.Path
+            Refresh-LocalFiles
+        }
+    }
+})
+$script:LocalList.Add_ItemDrag({
+    $paths = @(Get-SelectedFileTags $script:LocalList | ForEach-Object { $_.Path })
+    if ($paths.Count -gt 0) {
+        $data = New-Object System.Windows.Forms.DataObject
+        $data.SetData("KV260LocalPaths", ($paths -join "`n"))
+        [void]$script:LocalList.DoDragDrop($data, [System.Windows.Forms.DragDropEffects]::Copy)
+    }
+})
+$script:LocalList.Add_DragEnter({
+    if ($_.Data.GetDataPresent("KV260RemotePaths")) {
+        $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+    }
+})
+$script:LocalList.Add_DragDrop({
+    if ($_.Data.GetDataPresent("KV260RemotePaths")) {
+        $paths = ([string]$_.Data.GetData("KV260RemotePaths")) -split "`n" | Where-Object { $_ }
+        Download-RemotePaths $paths
+    }
+})
+$filesTab.Controls.Add($script:LocalList)
+
+$script:RemoteList = New-FileListView
+$script:RemoteList.Location = New-Object System.Drawing.Point(500, 102)
+$script:RemoteList.Size = New-Object System.Drawing.Size(486, 220)
+$script:RemoteList.Anchor = "Top,Bottom,Left,Right"
+$script:RemoteList.Add_DoubleClick({
+    if ($script:RemoteList.SelectedItems.Count -eq 1) {
+        $tag = $script:RemoteList.SelectedItems[0].Tag
+        if ($tag.IsDirectory) {
+            $script:RemotePathText.Text = $tag.Path
+            Refresh-RemoteFiles
+        }
+    }
+})
+$script:RemoteList.Add_ItemDrag({
+    $paths = @(Get-SelectedFileTags $script:RemoteList | ForEach-Object { $_.Path })
+    if ($paths.Count -gt 0) {
+        $data = New-Object System.Windows.Forms.DataObject
+        $data.SetData("KV260RemotePaths", ($paths -join "`n"))
+        [void]$script:RemoteList.DoDragDrop($data, [System.Windows.Forms.DragDropEffects]::Copy)
+    }
+})
+$script:RemoteList.Add_DragEnter({
+    if ($_.Data.GetDataPresent("KV260LocalPaths") -or $_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+        $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+    }
+})
+$script:RemoteList.Add_DragDrop({
+    if ($_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+        $paths = [string[]]$_.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)
+        Upload-LocalPaths $paths
+    } elseif ($_.Data.GetDataPresent("KV260LocalPaths")) {
+        $paths = ([string]$_.Data.GetData("KV260LocalPaths")) -split "`n" | Where-Object { $_ }
+        Upload-LocalPaths $paths
+    }
+})
+$filesTab.Controls.Add($script:RemoteList)
+
+$uploadButton = New-Button "Upload Selected ->" ([System.Drawing.Color]::FromArgb(5, 150, 105))
+$uploadButton.Location = New-Object System.Drawing.Point(14, 334)
+$uploadButton.Size = New-Object System.Drawing.Size(154, 34)
+$uploadButton.Add_Click({ Upload-SelectedFiles })
+$filesTab.Controls.Add($uploadButton)
+
+$downloadButton = New-Button "<- Download Selected" ([System.Drawing.Color]::FromArgb(37, 99, 235))
+$downloadButton.Location = New-Object System.Drawing.Point(174, 334)
+$downloadButton.Size = New-Object System.Drawing.Size(166, 34)
+$downloadButton.Add_Click({ Download-SelectedFiles })
+$filesTab.Controls.Add($downloadButton)
+
+$refreshFilesButton = New-Button "Refresh Both" ([System.Drawing.Color]::FromArgb(71, 85, 105))
+$refreshFilesButton.Location = New-Object System.Drawing.Point(346, 334)
+$refreshFilesButton.Size = New-Object System.Drawing.Size(116, 34)
+$refreshFilesButton.Add_Click({ Refresh-FileBrowsers })
+$filesTab.Controls.Add($refreshFilesButton)
+
+$newRemoteFolder = New-Button "New KV260 Folder" ([System.Drawing.Color]::FromArgb(217, 119, 6))
+$newRemoteFolder.Location = New-Object System.Drawing.Point(500, 334)
+$newRemoteFolder.Size = New-Object System.Drawing.Size(146, 34)
+$newRemoteFolder.Add_Click({ New-RemoteFolder })
+$filesTab.Controls.Add($newRemoteFolder)
+
+$openBoardTransfer = New-Button "Open Board Transfer GUI" ([System.Drawing.Color]::FromArgb(79, 70, 229))
+$openBoardTransfer.Location = New-Object System.Drawing.Point(652, 334)
+$openBoardTransfer.Size = New-Object System.Drawing.Size(176, 34)
+$openBoardTransfer.Add_Click({ Open-RemoteApp "file-transfer" "KV260 File Transfer" })
+$filesTab.Controls.Add($openBoardTransfer)
 
 $notebookTab = New-Object System.Windows.Forms.TabPage
 $notebookTab.Text = "Notebook And Power"
@@ -381,8 +837,8 @@ Add-ButtonToPanel $notebookPanel "Reboot KV260" ([System.Drawing.Color]::FromArg
 Add-ButtonToPanel $notebookPanel "Shutdown KV260" ([System.Drawing.Color]::FromArgb(127, 29, 29)) { Shutdown-KV260 }
 
 $script:OutputBox = New-Object System.Windows.Forms.TextBox
-$script:OutputBox.Location = New-Object System.Drawing.Point(24, 402)
-$script:OutputBox.Size = New-Object System.Drawing.Size(760, 146)
+$script:OutputBox.Location = New-Object System.Drawing.Point(24, 524)
+$script:OutputBox.Size = New-Object System.Drawing.Size(980, 126)
 $script:OutputBox.Anchor = "Top,Bottom,Left,Right"
 $script:OutputBox.Multiline = $true
 $script:OutputBox.ReadOnly = $true
@@ -396,14 +852,16 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner."
 $footer.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $footer.ForeColor = [System.Drawing.Color]::FromArgb(100, 116, 139)
-$footer.Location = New-Object System.Drawing.Point(24, 562)
-$footer.Size = New-Object System.Drawing.Size(760, 20)
+$footer.Location = New-Object System.Drawing.Point(24, 666)
+$footer.Size = New-Object System.Drawing.Size(980, 20)
 $footer.Anchor = "Bottom,Left,Right"
 $form.Controls.Add($footer)
 
 $form.Add_Shown({
     Add-Log "Ready. Host alias: $HostAlias"
     Refresh-Status
+    Refresh-LocalFiles
+    Refresh-RemoteFiles
 })
 
 [void]$form.ShowDialog()

@@ -31,6 +31,7 @@ app_command() {
     preferred-apps) echo "libfm-pref-apps" ;;
     desktop-preferences) echo "pcmanfm --desktop-pref" ;;
     native-metavision) echo "metavision_viewer" ;;
+    file-transfer) echo "${PROJECT_DIR}/scripts/kv260-file-transfer-gui.sh" ;;
     *) return 1 ;;
   esac
 }
@@ -46,6 +47,7 @@ app_name() {
     preferred-apps) echo "Preferred Applications" ;;
     desktop-preferences) echo "Desktop Preferences" ;;
     native-metavision) echo "Native Metavision Viewer" ;;
+    file-transfer) echo "KV260 File Transfer" ;;
     *) return 1 ;;
   esac
 }
@@ -61,12 +63,13 @@ app_binary() {
     preferred-apps) echo "libfm-pref-apps" ;;
     desktop-preferences) echo "pcmanfm" ;;
     native-metavision) echo "metavision_viewer" ;;
+    file-transfer) echo "python3" ;;
     *) return 1 ;;
   esac
 }
 
 list_apps() {
-  for app_id in pcmanfm terminal terminal-rxvt editor appearance touch-calibrator preferred-apps desktop-preferences native-metavision; do
+  for app_id in pcmanfm terminal terminal-rxvt editor appearance touch-calibrator preferred-apps desktop-preferences native-metavision file-transfer; do
     name="$(app_name "${app_id}")"
     cmd="$(app_command "${app_id}")"
     bin="$(app_binary "${app_id}")"
@@ -137,6 +140,9 @@ launch_app() {
     native-metavision)
       "${PROJECT_DIR}/scripts/kv260-event-camera-switch.sh" --stop-all >/dev/null 2>&1 || true
       exec metavision_viewer
+      ;;
+    file-transfer)
+      exec "${PROJECT_DIR}/scripts/kv260-file-transfer-gui.sh"
       ;;
   esac
 }

@@ -66,6 +66,7 @@ Windows also has a single `KV260 Control Center` launcher for the camera, common
 | `Open On KV260 Display` | Stops the Windows X11 GUI first, then opens or raises the custom GUI on the KV260 HDMI desktop |
 | `Stop All Viewers` | Releases `/dev/video0` cleanly |
 | `Applications` tab | Opens PCManFM, terminals, L3afpad, Appearance, touchscreen calibration, preferred apps, desktop preferences, and native Metavision through SSH X11 |
+| `Files` tab | Two-pane Windows/KV260 file browser with multi-select upload, download, and drag/drop SCP transfers |
 | `Open Jupyter Notebook` | Starts Jupyter on the KV260, opens an SSH tunnel, and opens the Windows browser |
 
 Main files:
@@ -77,6 +78,8 @@ scripts/kv260-event-camera-switch.sh
 scripts/kv260-event-camera-x11.sh
 scripts/kv260-remote-gui-app.sh
 scripts/kv260-jupyter-notebook.sh
+scripts/kv260-file-transfer-gui.py
+scripts/kv260-file-transfer-gui.sh
 scripts/windows/Open-KV260EventCamera.ps1
 scripts/kv260-metavision-viewer-toggle.sh
 scripts/kv260-install-prophesee-desktop.sh
@@ -165,6 +168,7 @@ Useful references:
 references/kv260-prophesee-resources.md
 references/kv260-event-camera-app.md
 references/kv260-full-setup.md
+references/kv260-file-transfer.md
 references/kv260-desktop-stall-recovery.md
 references/kv260-windows-shortcuts-x11.md
 references/kv260-native-metavision-viewer-close-behavior.md
