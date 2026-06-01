@@ -63,6 +63,16 @@ sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --free-percent 100
 
 The default is `--free-percent 100`.
 
+Grow to an absolute root-partition size:
+
+```sh
+sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --target-size 16G
+```
+
+Supported suffixes are `K`, `M`, `G`, and `T`; they are interpreted as binary units. For example, `16G` means 16 GiB total root-partition size.
+
+The script only grows. If the current root partition is already larger than the requested absolute target, it will not shrink it; it will report that the partition is already at or beyond the requested target.
+
 If the partition table grows but the kernel still sees the old size, reboot and run the same command again:
 
 ```sh
@@ -80,6 +90,7 @@ So after reboot, running the script again without arguments continues the saved 
 
 ```sh
 sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --free-percent 75
+sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --target-size 32G
 ```
 
 ## Idempotency
@@ -90,6 +101,7 @@ The script is safe to run repeatedly:
 - after reboot: runs `resize2fs` if the kernel now sees the larger partition;
 - after completion: detects that the partition is already full size and `resize2fs` becomes a harmless no-op.
 - with partial growth: uses the saved baseline and target percentage so repeated runs do not keep consuming more space.
+- with absolute-size growth: uses the saved target size so repeated runs continue the same target after reboot.
 
 ## Safety Checks
 

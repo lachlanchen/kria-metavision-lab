@@ -8,11 +8,16 @@ DRY_RUN=0
 STATUS_ONLY=0
 FREE_PERCENT=100
 FREE_PERCENT_SET=0
+TARGET_SIZE_ARG=""
+TARGET_SIZE_SET=0
+TARGET_SIZE_SECTORS=""
+TARGET_MODE="percent"
+STATE_LOADED=0
 
 usage() {
   cat <<'EOF'
 Usage:
-  kv260-expand-rootfs-sd.sh [--status|--dry-run] [--free-percent N]
+  kv260-expand-rootfs-sd.sh [--status|--dry-run] [--free-percent N|--target-size SIZE]
 
 Idempotently grow the mounted ext4 root filesystem to fill the SD card.
 
@@ -24,6 +29,9 @@ The script is safe to run:
 Options:
   --free-percent N  use N percent of the baseline free space after root
                     N must be 1..100. Default: 100
+  --target-size SIZE
+                    grow the root partition to an absolute total size.
+                    Supported suffixes: K, M, G, T. Example: 16G
   --status          print current layout and planned action without changing anything
   --dry-run         print commands that would be run without changing anything
   --help            show this help
@@ -33,6 +41,7 @@ Examples:
   kv260-expand-rootfs-sd.sh --free-percent 50
   kv260-expand-rootfs-sd.sh --free-percent 75
   kv260-expand-rootfs-sd.sh --free-percent 100
+  kv260-expand-rootfs-sd.sh --target-size 16G
 EOF
 }
 
@@ -115,6 +124,39 @@ device_size_sectors() {
   blockdev --getsz "$1"
 }
 
+parse_size_to_sectors() {
+  raw="$1"
+  awk -v raw="${raw}" '
+    BEGIN {
+      s = raw
+      gsub(/^[ \t]+/, "", s)
+      gsub(/[ \t]+$/, "", s)
+      mult = 0
+      if (s ~ /^[0-9]+([.][0-9]+)?[Kk]([Ii]?[Bb]?)?$/) {
+        sub(/[Kk]([Ii]?[Bb]?)?$/, "", s)
+        mult = 1024
+      } else if (s ~ /^[0-9]+([.][0-9]+)?[Mm]([Ii]?[Bb]?)?$/) {
+        sub(/[Mm]([Ii]?[Bb]?)?$/, "", s)
+        mult = 1024 * 1024
+      } else if (s ~ /^[0-9]+([.][0-9]+)?[Gg]([Ii]?[Bb]?)?$/) {
+        sub(/[Gg]([Ii]?[Bb]?)?$/, "", s)
+        mult = 1024 * 1024 * 1024
+      } else if (s ~ /^[0-9]+([.][0-9]+)?[Tt]([Ii]?[Bb]?)?$/) {
+        sub(/[Tt]([Ii]?[Bb]?)?$/, "", s)
+        mult = 1024 * 1024 * 1024 * 1024
+      } else {
+        exit 2
+      }
+      bytes = s * mult
+      sectors = int((bytes + 511) / 512)
+      if (sectors < 1) {
+        exit 3
+      }
+      printf "%.0f\n", sectors
+    }
+  '
+}
+
 state_get() {
   key="$1"
   [ -f "${STATE_FILE}" ] || return 0
@@ -137,7 +179,9 @@ write_state_file() {
     printf 'part_start=%s\n' "${PART_START}"
     printf 'baseline_size=%s\n' "${baseline_size}"
     printf 'baseline_free=%s\n' "${baseline_free}"
+    printf 'target_mode=%s\n' "${TARGET_MODE}"
     printf 'target_percent=%s\n' "${FREE_PERCENT}"
+    printf 'target_size=%s\n' "${TARGET_SIZE_SECTORS}"
     printf 'disk_sectors=%s\n' "${DISK_SECTORS}"
   } > "${STATE_FILE}"
   chmod 600 "${STATE_FILE}" 2>/dev/null || true
@@ -150,7 +194,9 @@ load_or_create_baseline() {
   saved_part_start="$(state_get part_start)"
   saved_baseline_size="$(state_get baseline_size)"
   saved_baseline_free="$(state_get baseline_free)"
+  saved_target_mode="$(state_get target_mode)"
   saved_target_percent="$(state_get target_percent)"
+  saved_target_size="$(state_get target_size)"
 
   if [ -n "${saved_disk}" ] || [ -n "${saved_root_dev}" ] || [ -n "${saved_part_start}" ] || [ -n "${saved_baseline_size}" ]; then
     if [ "${saved_disk}" = "${DISK}" ] \
@@ -161,21 +207,30 @@ load_or_create_baseline() {
       BASELINE_SIZE="${saved_baseline_size}"
       BASELINE_FREE="${saved_baseline_free}"
       BASELINE_SOURCE="${STATE_FILE}"
-      if [ "${FREE_PERCENT_SET}" = "0" ] && [ -n "${saved_target_percent}" ]; then
+      STATE_LOADED=1
+      if [ "${FREE_PERCENT_SET}" = "0" ] && [ "${TARGET_SIZE_SET}" = "0" ]; then
+        if [ "${saved_target_mode}" = "size" ] && [ -n "${saved_target_size}" ]; then
+          case "${saved_target_size}" in
+            ''|*[!0-9]*) ;;
+            *)
+              TARGET_MODE="size"
+              TARGET_SIZE_SECTORS="${saved_target_size}"
+              ;;
+          esac
+        elif [ -n "${saved_target_percent}" ]; then
+          saved_target_mode="percent"
+        fi
+      fi
+      if [ "${FREE_PERCENT_SET}" = "0" ] && [ "${TARGET_SIZE_SET}" = "0" ] && [ "${saved_target_mode}" = "percent" ] && [ -n "${saved_target_percent}" ]; then
         case "${saved_target_percent}" in
           ''|*[!0-9]*) ;;
           *)
             if [ "${saved_target_percent}" -ge 1 ] && [ "${saved_target_percent}" -le 100 ]; then
+              TARGET_MODE="percent"
               FREE_PERCENT="${saved_target_percent}"
             fi
             ;;
         esac
-      fi
-      if [ "${FREE_PERCENT_SET}" = "1" ] \
-        && [ "${STATUS_ONLY}" = "0" ] \
-        && [ "${DRY_RUN}" = "0" ] \
-        && [ "${saved_target_percent}" != "${FREE_PERCENT}" ]; then
-        write_state_file "${BASELINE_SIZE}" "${BASELINE_FREE}"
       fi
       return 0
     fi
@@ -232,7 +287,12 @@ print_status() {
   log "Baseline source:   ${BASELINE_SOURCE}"
   log "Baseline size:     ${BASELINE_SIZE}"
   log "Baseline free:     ${BASELINE_FREE}"
-  log "Free percent:      ${FREE_PERCENT}%"
+  log "Target mode:       ${TARGET_MODE}"
+  if [ "${TARGET_MODE}" = "percent" ]; then
+    log "Free percent:      ${FREE_PERCENT}%"
+  else
+    log "Requested size:    ${TARGET_SIZE_SECTORS} sectors"
+  fi
   log "Target end:        ${TARGET_END}"
   log "Target size:       ${TARGET_SIZE}"
   log "Kernel part size:  ${KERNEL_PART_SIZE}"
@@ -251,13 +311,32 @@ while [ "$#" -gt 0 ]; do
       ;;
     --free-percent)
       [ "$#" -ge 2 ] || die "--free-percent requires a value"
+      [ "${TARGET_SIZE_SET}" = "0" ] || die "use either --free-percent or --target-size, not both"
       FREE_PERCENT="$2"
       FREE_PERCENT_SET=1
+      TARGET_MODE="percent"
       shift 2
       ;;
     --free-percent=*)
+      [ "${TARGET_SIZE_SET}" = "0" ] || die "use either --free-percent or --target-size, not both"
       FREE_PERCENT="${1#--free-percent=}"
       FREE_PERCENT_SET=1
+      TARGET_MODE="percent"
+      shift
+      ;;
+    --target-size)
+      [ "$#" -ge 2 ] || die "--target-size requires a value"
+      [ "${FREE_PERCENT_SET}" = "0" ] || die "use either --free-percent or --target-size, not both"
+      TARGET_SIZE_ARG="$2"
+      TARGET_SIZE_SET=1
+      TARGET_MODE="size"
+      shift 2
+      ;;
+    --target-size=*)
+      [ "${FREE_PERCENT_SET}" = "0" ] || die "use either --free-percent or --target-size, not both"
+      TARGET_SIZE_ARG="${1#--target-size=}"
+      TARGET_SIZE_SET=1
+      TARGET_MODE="size"
       shift
       ;;
     -h|--help)
@@ -276,6 +355,11 @@ esac
 [ "${FREE_PERCENT}" -ge 1 ] || die "--free-percent must be at least 1"
 [ "${FREE_PERCENT}" -le 100 ] || die "--free-percent must be at most 100"
 
+if [ "${TARGET_SIZE_SET}" = "1" ]; then
+  TARGET_SIZE_SECTORS="$(parse_size_to_sectors "${TARGET_SIZE_ARG}")" \
+    || die "--target-size must use a supported size suffix, for example 16G"
+fi
+
 for cmd in findmnt readlink lsblk blockdev sfdisk parted partprobe partx resize2fs awk sed date df; do
   need_cmd "${cmd}"
 done
@@ -286,6 +370,7 @@ if [ "$(id -u)" -ne 0 ]; then
   [ "${DRY_RUN}" = "1" ] && set -- "$@" --dry-run
   [ "${STATUS_ONLY}" = "1" ] && set -- "$@" --status
   [ "${FREE_PERCENT_SET}" = "1" ] && set -- "$@" --free-percent "${FREE_PERCENT}"
+  [ "${TARGET_SIZE_SET}" = "1" ] && set -- "$@" --target-size "${TARGET_SIZE_ARG}"
   exec sudo "$0" "$@"
 fi
 
@@ -323,9 +408,16 @@ MAX_END="$(max_partition_end "${DISK}")"
 KERNEL_PART_SIZE="$(device_size_sectors "${ROOT_DEV}")"
 
 load_or_create_baseline
-TARGET_SIZE=$((BASELINE_SIZE + (BASELINE_FREE * FREE_PERCENT / 100)))
 MAX_TARGET_SIZE=$((DISK_SECTORS - PART_START))
-[ "${TARGET_SIZE}" -le "${MAX_TARGET_SIZE}" ] || TARGET_SIZE="${MAX_TARGET_SIZE}"
+if [ "${TARGET_MODE}" = "size" ]; then
+  TARGET_SIZE="${TARGET_SIZE_SECTORS}"
+  if [ "${TARGET_SIZE}" -gt "${MAX_TARGET_SIZE}" ]; then
+    die "requested target size is larger than available SD-card space"
+  fi
+else
+  TARGET_SIZE=$((BASELINE_SIZE + (BASELINE_FREE * FREE_PERCENT / 100)))
+  [ "${TARGET_SIZE}" -le "${MAX_TARGET_SIZE}" ] || TARGET_SIZE="${MAX_TARGET_SIZE}"
+fi
 TARGET_END=$((PART_START + TARGET_SIZE - 1))
 
 print_status
@@ -335,14 +427,26 @@ if [ "${PART_END}" -lt "${MAX_END}" ]; then
 fi
 
 if [ "${TARGET_SIZE}" -le "${PART_SIZE}" ]; then
-  log "Partition table is already at or beyond the ${FREE_PERCENT}% target."
+  if [ "${TARGET_MODE}" = "size" ]; then
+    log "Partition table is already at or beyond the requested absolute target size."
+  else
+    log "Partition table is already at or beyond the ${FREE_PERCENT}% target."
+  fi
 else
   if [ "${STATUS_ONLY}" = "1" ]; then
     log "Planned action: grow partition ${PART_NUM} from ${PART_SIZE} to ${TARGET_SIZE} sectors."
     exit 0
   fi
 
-  log "Growing partition ${ROOT_DEV} to ${FREE_PERCENT}% of the baseline free-space target."
+  if [ "${STATE_LOADED}" = "1" ] && { [ "${FREE_PERCENT_SET}" = "1" ] || [ "${TARGET_SIZE_SET}" = "1" ]; }; then
+    write_state_file "${BASELINE_SIZE}" "${BASELINE_FREE}"
+  fi
+
+  if [ "${TARGET_MODE}" = "size" ]; then
+    log "Growing partition ${ROOT_DEV} to the requested absolute target size."
+  else
+    log "Growing partition ${ROOT_DEV} to ${FREE_PERCENT}% of the baseline free-space target."
+  fi
   backup_partition_table "${DISK}"
 
   if ! run_cmd parted -s "${DISK}" unit s resizepart "${PART_NUM}" "${TARGET_END}s"; then
