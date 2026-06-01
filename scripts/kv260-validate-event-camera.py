@@ -18,7 +18,9 @@ HERE = pathlib.Path(__file__).resolve().parent
 PROJECT_DIR = HERE.parent
 APP_PATH = HERE / "kv260-event-camera-app.py"
 DEFAULT_OUTPUT_ROOT = pathlib.Path("/tmp/kv260-event-camera-validation")
-DEFAULT_RECORD_DIR = pathlib.Path(os.path.expanduser("~/event_recordings"))
+DEFAULT_RECORD_DIR = pathlib.Path(
+    os.path.expanduser(os.environ.get("KV260_EVENT_RECORD_DIR", str(PROJECT_DIR / "recordings" / "event-camera")))
+)
 
 
 class FrameStats:

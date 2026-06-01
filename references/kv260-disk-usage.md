@@ -15,7 +15,7 @@ free: about 751M
 
 So `/home` only appears to have about 3.8 GB because it is not a separate large partition. It shares the root filesystem.
 
-Large home-directory items observed:
+Large home-directory items observed before cleanup:
 
 ```text
 /home/petalinux/event-visual       about 942M
@@ -24,6 +24,15 @@ Large home-directory items observed:
 /home/petalinux/.codex             about 114M
 /home/petalinux/Projects           about 22M
 ```
+
+Cleanup on 2026-06-01 moved the large event recording folders into the starter project:
+
+```text
+/home/petalinux/Projects/kria-kv260-starter/recordings/event-visual-legacy
+/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+```
+
+The `recordings/` directory is ignored by git, so these large `.raw` files stay local and are not pushed to GitHub.
 
 ## `ncdu` Package Status
 

@@ -128,7 +128,7 @@ The app auto-opens the camera when launched from the desktop.
 Default output folder:
 
 ```text
-/home/petalinux/event_recordings
+/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
 ```
 
 Default filename pattern:
@@ -207,7 +207,7 @@ GUI smoke: starts on DISPLAY=:0 with auto-open disabled and exits through the lo
 old commit comparison: 80910d3 live path produced 234925 events, 223 buffers, 122 frames in 5 seconds
 live renderer regression fix: restored immediate draw-and-decay live path; current path produced 268045 events, 217 buffers, 117 frames in 5 seconds
 live continuity check: after the first 2 seconds, 71 of 71 emitted frames changed instead of fading static
-playback smoke: /home/petalinux/event_recordings/event_20260531_183748.pse2.raw decoded 59459 events from first 512 KiB and rendered nonblank
+playback smoke: event_20260531_183748.pse2.raw decoded 59459 events from first 512 KiB and rendered nonblank
 recording hot-loop robustness: payload is now copied, V4L2 buffer is requeued immediately, recording write happens before preview decode
 recording smoke: 3350960 byte .pse2.raw file, recorded_bytes=3350960, replay decoded 65345 events from first 512 KiB, preview_errors=0
 bounded writer robustness: default queue recording wrote 3990184 bytes across 326 buffers with drops=0, pending=0, write_error=None

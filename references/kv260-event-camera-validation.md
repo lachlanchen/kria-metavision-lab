@@ -36,7 +36,7 @@ Reports are written outside the repo by default:
 Recordings are written to:
 
 ```text
-/home/petalinux/event_recordings
+/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
 ```
 
 ## Latest Deep Validation
@@ -44,7 +44,7 @@ Recordings are written to:
 Latest report:
 
 ```text
-/tmp/kv260-event-camera-validation/20260601-070136/report.md
+/tmp/kv260-event-camera-validation/20260601-153214/report.md
 ```
 
 Overall result:
@@ -101,13 +101,13 @@ This confirms the writer drains cleanly and reports bounded-queue overflow inste
 No-recording live preview:
 
 ```text
-buffers=183
-decoded_buffers=183
+buffers=206
+decoded_buffers=206
 skipped_buffers=0
 preview_errors=0
-frames=87
-changed_after_2s=57
-nonblank_frames=87
+frames=109
+changed_after_2s=74
+nonblank_frames=109
 ```
 
 This confirms the smooth preview path is still active when recording is off: every captured payload was decoded for preview and no preview payloads were skipped.
@@ -115,16 +115,16 @@ This confirms the smooth preview path is still active when recording is off: eve
 Recording with `Recording Priority` on:
 
 ```text
-file_size=11038448
-bytes_written=11038448
-buffers_written=132
+file_size=4468120
+bytes_written=4468120
+buffers_written=239
 queue_pending=0
 drops=0
 write_error=None
-stop_elapsed_s=0.001
-decoded_buffers=102
-skipped_buffers=60
-replay_events_from_first_1MiB=127041
+stop_elapsed_s=0.002
+decoded_buffers=180
+skipped_buffers=100
+replay_events_from_first_1MiB=113664
 replay_nonblank=True
 ```
 
@@ -133,11 +133,11 @@ This confirms the default recording-first mode works as designed: recording wrot
 Playback player:
 
 ```text
-events=47622
+events=43047
 frames=7
 nonblank_frames=7
 observed_playback=True
-stop_elapsed_s=0.161
+stop_elapsed_s=0.093
 ```
 
 This confirms the `Open Recording` code path can open a captured `.pse2.raw`, render nonblank playback frames, and stop cleanly.
@@ -145,16 +145,16 @@ This confirms the `Open Recording` code path can open a captured `.pse2.raw`, re
 Recording with `Recording Priority` off:
 
 ```text
-file_size=5028400
-bytes_written=5028400
-buffers_written=232
+file_size=2353432
+bytes_written=2353432
+buffers_written=273
 queue_pending=0
 drops=0
 write_error=None
-stop_elapsed_s=0.001
-decoded_buffers=263
+stop_elapsed_s=0.002
+decoded_buffers=315
 skipped_buffers=0
-replay_events_from_first_1MiB=125942
+replay_events_from_first_1MiB=110407
 replay_nonblank=True
 ```
 

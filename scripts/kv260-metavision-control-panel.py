@@ -15,7 +15,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(HERE)
 VIEWER_HELPER = os.path.join(HERE, "kv260-event-visual-gui-local.sh")
 DESKTOP_HELPER = os.path.join(HERE, "kv260-launch-desktop-viewer.sh")
-DEFAULT_RECORD_DIR = os.path.expanduser(os.environ.get("KV260_EVENT_RECORD_DIR", "~/event_recordings"))
+DEFAULT_RECORD_DIR = os.path.expanduser(
+    os.environ.get("KV260_EVENT_RECORD_DIR", os.path.join(PROJECT_DIR, "recordings", "event-camera"))
+)
 
 
 KeyPress = 2
