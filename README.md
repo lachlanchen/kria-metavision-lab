@@ -19,6 +19,12 @@
 
 <sub>Custom KV260 Event Camera GUI running on the local PetaLinux desktop with live Prophesee event data, recording controls, capture naming, and camera recovery tools.</sub>
 
+<br><br>
+
+<img src="docs/assets/kv260-control-center.png" alt="KV260 Control Center on Windows with camera, applications, notebook, and power controls" width="100%">
+
+<sub>Windows KV260 Control Center: one entry point for camera routing, board GUI apps through SSH X11, Jupyter, and power actions.</sub>
+
 </div>
 
 ## Why This Exists
