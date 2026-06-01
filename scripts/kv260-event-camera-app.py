@@ -554,6 +554,7 @@ class RawRecordingWriter:
         with self.stats_lock:
             pending = self.queue.qsize()
             return {
+                "queue_size": self.queue_size,
                 "queued_buffers": self.queued_buffers,
                 "queued_bytes": self.queued_bytes,
                 "buffers_written": self.buffers_written,
@@ -624,6 +625,7 @@ class V4L2EventStream:
         self.preview_errors = 0
         self.preview_decoded_buffers = 0
         self.preview_skipped_buffers = 0
+        self.recording_priority = True
 
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
@@ -658,6 +660,30 @@ class V4L2EventStream:
     def is_recording(self):
         with self.record_lock:
             return self.record_writer is not None
+
+    def set_recording_priority(self, enabled):
+        self.recording_priority = bool(enabled)
+
+    def recording_snapshot(self):
+        with self.record_lock:
+            writer = self.record_writer
+            record_bytes = self.record_bytes
+            record_events = self.record_events
+        if not writer:
+            return None
+        stats = writer.snapshot()
+        stats.update(
+            {
+                "accepted_bytes": record_bytes,
+                "record_events": record_events,
+                "preview_decoded_buffers": self.preview_decoded_buffers,
+                "preview_skipped_buffers": self.preview_skipped_buffers,
+                "preview_errors": self.preview_errors,
+                "total_buffers": self.total_buffers,
+                "recording_priority": self.recording_priority,
+            }
+        )
+        return stats
 
     def start_recording(self, path):
         metadata = {
@@ -777,7 +803,7 @@ class V4L2EventStream:
                             self.record_bytes += len(payload)
 
                 events = 0
-                decode_preview = (not recording_enabled) or frame_due
+                decode_preview = (not recording_enabled) or (not self.recording_priority) or frame_due
                 if decode_preview:
                     try:
                         events = self._decode_and_draw(payload)
@@ -1095,6 +1121,7 @@ class EventCameraApp(Gtk.Window):
         self.build_ui()
         self.set_status("Ready. Open Live owns /dev/video0 directly; Close releases it.")
         GLib.timeout_add(33, self.refresh_image)
+        GLib.timeout_add(500, self.refresh_recording_status)
         self.start_command_server()
         self.refresh_bias_controls_async()
         if os.environ.get("KV260_EVENT_APP_AUTO_OPEN", "1") != "0":
@@ -1214,6 +1241,20 @@ class EventCameraApp(Gtk.Window):
         self.mode_label = Gtk.Label(label="Mode: Idle")
         self.mode_label.set_xalign(0)
         box.pack_start(self.mode_label, False, False, 0)
+
+        record_status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.priority_check = Gtk.CheckButton(label="Recording Priority")
+        self.priority_check.set_active(True)
+        self.priority_check.connect("toggled", self.on_recording_priority_changed)
+        record_status_row.pack_start(self.priority_check, False, False, 0)
+        self.record_status_label = Gtk.Label(label="Recording: idle")
+        self.record_status_label.set_xalign(0)
+        self.record_status_label.set_hexpand(True)
+        self.record_status_label.set_line_wrap(True)
+        self.record_status_label.set_max_width_chars(96)
+        record_status_row.pack_start(self.record_status_label, True, True, 0)
+        box.pack_start(record_status_row, False, False, 0)
+
         self.update_controls()
         return box
 
@@ -1363,6 +1404,31 @@ class EventCameraApp(Gtk.Window):
             self.image.set_from_pixbuf(pixbuf)
         return True
 
+    def refresh_recording_status(self):
+        if not hasattr(self, "record_status_label"):
+            return True
+        text = "Recording: idle"
+        if isinstance(self.source, V4L2EventStream) and self.source.is_recording():
+            stats = self.source.recording_snapshot()
+            if stats:
+                mb = stats["bytes_written"] / (1024.0 * 1024.0)
+                text = (
+                    "Recording: %.1f MB, %s buffers, queue %s/%s, drops %s"
+                    % (
+                        mb,
+                        stats["buffers_written"],
+                        stats["pending_buffers"],
+                        stats["queue_size"],
+                        stats["dropped_buffers"],
+                    )
+                )
+                if stats["preview_skipped_buffers"]:
+                    text += ", preview skipped %s" % stats["preview_skipped_buffers"]
+                if stats["write_error"]:
+                    text += ", write error"
+        self.record_status_label.set_text(text)
+        return True
+
     def update_controls(self):
         live = isinstance(self.source, V4L2EventStream)
         playback = isinstance(self.source, PSE2RecordingPlayer)
@@ -1374,6 +1440,7 @@ class EventCameraApp(Gtk.Window):
         self.pause_button.set_label("Resume" if self.playback_paused else "Pause")
         self.record_button.set_label("Stop Recording" if self.recording else "Start Recording")
         self.mode_label.set_text("Mode: %s" % self.source_mode)
+        self.refresh_recording_status()
 
     def output_path(self):
         folder = os.path.abspath(os.path.expanduser(self.folder_entry.get_text().strip() or DEFAULT_RECORD_DIR))
@@ -1445,6 +1512,11 @@ class EventCameraApp(Gtk.Window):
         if isinstance(self.source, V4L2EventStream):
             self.source.apply_render_settings(self.renderer.snapshot_settings())
 
+    def on_recording_priority_changed(self, _widget):
+        if isinstance(self.source, V4L2EventStream):
+            self.source.set_recording_priority(self.priority_check.get_active())
+        self.refresh_recording_status()
+
     def on_open_camera(self, _button):
         if self.source:
             self.set_status("A source is already open. Close it first.")
@@ -1453,6 +1525,7 @@ class EventCameraApp(Gtk.Window):
         device = self.device_entry.get_text().strip() or DEFAULT_DEVICE
         self.source = V4L2EventStream(device, self.renderer, self.on_frame, self.set_status)
         self.source.apply_render_settings(self.renderer.snapshot_settings())
+        self.source.set_recording_priority(self.priority_check.get_active())
         self.source_mode = "Live"
         self.source.start()
         self.update_controls()

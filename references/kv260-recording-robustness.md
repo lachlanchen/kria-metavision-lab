@@ -117,15 +117,14 @@ fcntl.ioctl(self.fd, VIDIOC_QBUF, buf)
 
 Then recording and preview can use the copied `payload`.
 
-## What Not To Add Yet
+## What Not To Add Until Measured
 
-Do not add these until there is measurement showing we need them:
+The first pass intentionally avoided architectural churn. Stage 2 later added the one background writer that directly supports recording robustness. Do not add more machinery until measurement shows we need it:
 
-- Separate writer thread.
-- Bounded recording queue.
 - Complicated recovery logic.
 - Heavy loss-accounting UI.
-- Official RAW export/conversion.
+- Official RAW export/conversion in the live recorder.
+- Multiple writer stages.
 - Large architectural split between capture, recording, and preview.
 
 These can be useful later, but they are not the first change. They add complexity and may not improve performance on this KV260 image.
@@ -398,6 +397,103 @@ GUI lifecycle smoke test:
 ```text
 GUI_SMOKE rc=0
 ```
+
+## Stage 4 GUI Status And Recording Priority
+
+Stage 4 exposes the current recording state in the GUI and makes the recording-first preview policy explicit.
+
+The camera tab now shows a compact status line:
+
+```text
+Recording: 12.4 MB, 912 buffers, queue 0/256, drops 0
+```
+
+The status is intentionally small. It reports the values that matter during daily use:
+
+- bytes already written by the writer thread,
+- buffers written,
+- pending writer queue depth,
+- queue capacity,
+- dropped raw payload count,
+- preview payloads skipped when recording priority is active.
+
+The camera tab also has a default-on `Recording Priority` toggle.
+
+When `Recording Priority` is on:
+
+- every copied raw payload is still offered to the recorder,
+- preview is decoded only when a display frame is due,
+- live preview does less CPU work while recording,
+- stop waits for the writer queue to drain cleanly.
+
+When `Recording Priority` is off:
+
+- every copied raw payload is still offered to the recorder first,
+- preview decodes every payload,
+- this can make live visualization smoother during low-rate recording,
+- this can increase CPU cost at high event rates.
+
+The default stays on because recording correctness is more important than preview smoothness while actively saving data.
+
+Verification after the patch:
+
+```text
+LIVE_RESULT frames=61 diffs=60 after_frames=31 after_diffs=30 events=882114 buffers=125 decoded_buffers=125 skipped_buffers=0 preview_errors=0 priority=True
+```
+
+Recording priority on:
+
+```text
+REC_ON_RESULT file_size=9881880 stats_bytes=9881880 stats_buffers=118 stats_drops=0 stats_pending=0 stats_error=None decoded_buffers=82 skipped_buffers=55 preview_errors=0 replay_events=63346 replay_nonblank=True priority=True
+```
+
+Recording priority off:
+
+```text
+REC_OFF_RESULT file_size=4965648 stats_bytes=4965648 stats_buffers=172 stats_drops=0 stats_pending=0 stats_error=None decoded_buffers=207 skipped_buffers=0 preview_errors=0 replay_events=68751 replay_nonblank=True priority=False
+```
+
+GUI lifecycle smoke test:
+
+```text
+GUI_SMOKE rc=0
+```
+
+## Separate Converter Direction
+
+The live recorder should keep writing:
+
+```text
+.pse2.raw + .pse2.raw.json
+```
+
+This is the stable capture format for this project. It is simple, fast, and close to the V4L2 payload stream.
+
+Official Metavision RAW compatibility should be added as a separate converter later:
+
+```text
+.pse2.raw -> official-ish Metavision RAW
+```
+
+That converter should read our raw payload and JSON metadata after recording has finished. It should not sit in the live capture path. Keeping conversion separate avoids risking the stable recorder.
+
+## C++ Helper Direction
+
+Only consider C++ if Python becomes a measured bottleneck.
+
+The C++ target should be small:
+
+```text
+kv260-raw-recorder-helper
+```
+
+Its job should be only:
+
+```text
+V4L2 capture -> raw file writing -> compact stats
+```
+
+It should not implement the GTK GUI. The GUI can start/stop the helper and display the helper stats. This keeps the GUI easy to maintain while giving the recording path a lower-overhead option if measurements prove it is needed.
 
 ## References
 

@@ -92,6 +92,8 @@ The current app keeps the original known-good live renderer: every live PSE2 pay
 - `Close`: stops streaming or playback and releases `/dev/video0`.
 - `Start Recording`: records the exact raw V4L2 PSE2 byte stream.
 - `Stop Recording`: closes the recording file cleanly.
+- `Recording Priority`: default on. While recording, every raw payload is queued for recording first and live preview is decimated to reduce CPU pressure. Turn it off only when recording rates are low and smoother recording-time preview matters more.
+- `Recording status`: compact live counter for written MB, written buffers, writer queue depth, queue capacity, raw payload drops, and preview payloads skipped during recording priority mode.
 - `Open Recording`: opens a previously captured `.pse2.raw` / raw EVT2.1 payload recording for playback.
 - `Pause` / `Resume`: pauses or resumes recording playback.
 - `New Name`: generates a timestamped output filename.
@@ -144,6 +146,8 @@ event_YYYYMMDD_HHMMSS.pse2.raw.json
 The `.raw` file is the exact V4L2 PSE2/EVT2.1 byte stream. It is useful for board-side debugging and replay tooling that understands the KV260 PSE2 stream. It is not guaranteed to be the same container format as Metavision SDK `.raw` files, because the board image does not include the Metavision Python SDK modules or C++ development headers.
 
 The custom app can replay its own `.pse2.raw` files directly. Official Metavision RAW/DAT/HDF5 support should be added later through the installed C++ SDK runtime or a small OpenEB helper, because the Python Metavision modules are not present in this image.
+
+Keep official RAW export separate from live capture. The stable live recorder should continue writing `.pse2.raw` plus JSON metadata, and a later converter can translate finished recordings into an official-ish Metavision RAW container without adding risk to the capture path.
 
 ## Install Or Refresh Launcher
 
@@ -209,6 +213,7 @@ recording smoke: 3350960 byte .pse2.raw file, recorded_bytes=3350960, replay dec
 bounded writer robustness: default queue recording wrote 3990184 bytes across 326 buffers with drops=0, pending=0, write_error=None
 small queue robustness: KV260_RECORD_QUEUE_BUFFERS=8 wrote 2379888 bytes across 231 buffers with drops=0
 recording preview decimation: non-recording decoded 174/174 buffers; recording decoded 99 buffers, skipped 70 preview buffers, wrote 13695824 bytes with drops=0
+recording status and priority mode: GUI shows MB/buffer/queue/drop counters; priority on decimates preview during recording; priority off decodes every payload after the recorder enqueue
 ```
 
 Direct stream test:
