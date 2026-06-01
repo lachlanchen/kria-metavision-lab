@@ -236,3 +236,15 @@ Windows launcher logs:
 Use the single `KV260 Event Camera` Windows shortcut. Choose `Open On Windows` when you want the app on Windows, or `Open On KV260 Display` when you want the app on the board monitor. Switching modes is allowed; the switcher stops the previous mode first.
 
 RDP is not required for either path.
+
+## Confirmed Good Workflow
+
+Verified on 2026-06-01:
+
+- The single Windows entrance shortcut `KV260 Event Camera.lnk` opens the control panel correctly.
+- The panel buttons work as the preferred workflow.
+- `Open On Windows` is the correct path when the GUI should appear on the Windows desktop through SSH X11.
+- `Open On KV260 Display` is the correct path when the GUI should appear on the board HDMI display.
+- The old two-shortcut design is intentionally retired because it was too easy to leave `/dev/video0` owned by the other display mode.
+
+Future launcher changes should preserve this single-entry design unless there is a strong reason to split the workflow again.
