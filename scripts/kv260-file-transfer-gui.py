@@ -295,6 +295,7 @@ class TransferApp(Gtk.Window):
         outer.pack_start(subtitle, False, False, 0)
 
         settings = Gtk.Grid(column_spacing=8, row_spacing=8)
+        settings.set_column_homogeneous(False)
         outer.pack_start(settings, False, False, 0)
 
         self.remote_entry = Gtk.Entry(text=self.config["remote_user_host"])
@@ -307,29 +308,28 @@ class TransferApp(Gtk.Window):
             self.os_combo.append(value, label)
         self.os_combo.set_active_id(self.config.get("remote_os", "windows"))
 
-        fields = [
-            ("Remote", self.remote_entry),
-            ("Key", self.key_entry),
-            ("Password", self.password_entry),
-            ("Remote OS", self.os_combo),
-            ("Remote Root", self.remote_root_entry),
-        ]
-        for index, (label_text, widget) in enumerate(fields):
+        def add_setting(label_text, widget, row, column, span=1, expand=True):
             label = Gtk.Label(label=label_text)
             label.set_xalign(0)
-            settings.attach(label, index * 2, 0, 1, 1)
-            widget.set_hexpand(index in (0, 1, 4))
-            settings.attach(widget, index * 2 + 1, 0, 1, 1)
+            settings.attach(label, column, row, 1, 1)
+            widget.set_hexpand(expand)
+            settings.attach(widget, column + 1, row, span, 1)
 
-        save_button = Gtk.Button(label="Save")
+        add_setting("Remote", self.remote_entry, 0, 0, span=3)
+        add_setting("Remote OS", self.os_combo, 0, 5, span=1, expand=False)
+        add_setting("Key", self.key_entry, 1, 0, span=3)
+        add_setting("Password", self.password_entry, 1, 5, span=1, expand=False)
+        add_setting("Remote Root", self.remote_root_entry, 2, 0, span=5)
+
+        save_button = Gtk.Button(label="Save Settings")
         save_button.connect("clicked", lambda _button: self.save_settings())
-        settings.attach(save_button, 10, 0, 1, 1)
+        settings.attach(save_button, 6, 2, 1, 1)
 
         paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         paned.set_wide_handle(True)
         outer.pack_start(paned, True, True, 0)
 
-        self.local_pane = FilePane("KV260 Local")
+        self.local_pane = FilePane("KV260 Board")
         self.remote_pane = FilePane("Remote Host", is_remote=True)
         self.local_pane.on_refresh = self.refresh_local
         self.remote_pane.on_refresh = self.refresh_remote
@@ -342,15 +342,15 @@ class TransferApp(Gtk.Window):
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         outer.pack_start(actions, False, False, 0)
-        upload = Gtk.Button(label="Upload Selected ->")
+        upload = Gtk.Button(label="Copy KV260 -> Remote")
         upload.get_style_context().add_class("success")
         upload.connect("clicked", lambda _button: self.upload_selected())
         actions.pack_start(upload, False, False, 0)
-        download = Gtk.Button(label="<- Download Selected")
+        download = Gtk.Button(label="Copy Remote -> KV260")
         download.get_style_context().add_class("suggested")
         download.connect("clicked", lambda _button: self.download_selected())
         actions.pack_start(download, False, False, 0)
-        new_local = Gtk.Button(label="New Local Folder")
+        new_local = Gtk.Button(label="New KV260 Folder")
         new_local.connect("clicked", lambda _button: self.new_folder(False))
         actions.pack_start(new_local, False, False, 0)
         new_remote = Gtk.Button(label="New Remote Folder")
@@ -419,9 +419,9 @@ class TransferApp(Gtk.Window):
         def thread_main():
             try:
                 result = worker()
-                GLib.idle_add(lambda: self._finish_background(label, None, result, done))
+                GLib.idle_add(lambda result=result: self._finish_background(label, None, result, done))
             except Exception as exc:
-                GLib.idle_add(lambda: self._finish_background(label, exc, None, done))
+                GLib.idle_add(lambda error=exc: self._finish_background(label, error, None, done))
 
         threading.Thread(target=thread_main, daemon=True).start()
 

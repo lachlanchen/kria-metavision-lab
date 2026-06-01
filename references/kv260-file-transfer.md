@@ -20,13 +20,20 @@ There are two frontends instead of one overloaded app:
 
 This keeps the Windows experience native and keeps the board experience usable even when no Windows machine is involved.
 
+Both frontends use the same visual direction:
+
+```text
+left  = KV260 board
+right = remote host / Windows
+```
+
 ## Windows Control Center Files Tab
 
 Capabilities:
 
 - two-pane file browser,
-- left pane: Windows local filesystem,
-- right pane: KV260 filesystem,
+- left pane: KV260 filesystem,
+- right pane: Windows local filesystem,
 - multi-select upload and download,
 - drag selected Windows rows onto the KV260 pane to upload,
 - drag selected KV260 rows onto the Windows pane to download,
@@ -131,3 +138,10 @@ On 2026-06-01:
 ```text
 /usr/share/applications/kv260-file-transfer.desktop
 ```
+
+Update after layout/debug pass:
+
+- Windows Control Center Files tab was changed to show KV260 on the left and Windows on the right.
+- Top path controls were spaced wider so Browse/Up buttons do not overlap the path boxes.
+- Board-side GTK app was changed to capture background-thread exceptions safely, avoiding delayed GTK callback tracebacks.
+- Re-ran Windows `-CheckOnly`, board-side Windows directory listing, Windows -> KV260 -> Windows transfer, and board -> Windows -> board transfer after the fix.

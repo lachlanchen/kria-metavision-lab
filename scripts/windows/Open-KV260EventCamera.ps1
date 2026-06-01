@@ -554,8 +554,8 @@ function Shutdown-KV260 {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "KV260 Control Center"
 $form.StartPosition = "CenterScreen"
-$form.Size = New-Object System.Drawing.Size(1040, 760)
-$form.MinimumSize = New-Object System.Drawing.Size(960, 680)
+$form.Size = New-Object System.Drawing.Size(1120, 760)
+$form.MinimumSize = New-Object System.Drawing.Size(1040, 680)
 $form.BackColor = [System.Drawing.Color]::FromArgb(246, 248, 251)
 
 $title = New-Object System.Windows.Forms.Label
@@ -571,7 +571,7 @@ $subtitle.Text = "Launch the event camera, board tools, notebooks, and system ac
 $subtitle.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
 $subtitle.Location = New-Object System.Drawing.Point(26, 58)
-$subtitle.Size = New-Object System.Drawing.Size(940, 22)
+$subtitle.Size = New-Object System.Drawing.Size(1040, 22)
 $form.Controls.Add($subtitle)
 
 function New-Button {
@@ -613,7 +613,7 @@ function New-FlowPanel {
 
 $tabs = New-Object System.Windows.Forms.TabControl
 $tabs.Location = New-Object System.Drawing.Point(24, 92)
-$tabs.Size = New-Object System.Drawing.Size(980, 416)
+$tabs.Size = New-Object System.Drawing.Size(1060, 416)
 $tabs.Anchor = "Top,Left,Right"
 $tabs.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($tabs)
@@ -651,33 +651,33 @@ $filesTab.Text = "Files"
 $tabs.TabPages.Add($filesTab)
 
 $filesHeader = New-Object System.Windows.Forms.Label
-$filesHeader.Text = "Copy files and folders between Windows and the KV260. Multi-select rows, use the buttons, or drag between panes."
+$filesHeader.Text = "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right."
 $filesHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $filesHeader.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
 $filesHeader.Location = New-Object System.Drawing.Point(14, 12)
-$filesHeader.Size = New-Object System.Drawing.Size(920, 22)
+$filesHeader.Size = New-Object System.Drawing.Size(1020, 22)
 $filesHeader.Anchor = "Top,Left,Right"
 $filesTab.Controls.Add($filesHeader)
 
 $localLabel = New-Object System.Windows.Forms.Label
-$localLabel.Text = "Windows"
+$localLabel.Text = "KV260 Board"
 $localLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $localLabel.Location = New-Object System.Drawing.Point(14, 42)
 $localLabel.Size = New-Object System.Drawing.Size(120, 22)
 $filesTab.Controls.Add($localLabel)
 
 $remoteLabel = New-Object System.Windows.Forms.Label
-$remoteLabel.Text = "KV260"
+$remoteLabel.Text = "Windows / Remote Host"
 $remoteLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-$remoteLabel.Location = New-Object System.Drawing.Point(500, 42)
-$remoteLabel.Size = New-Object System.Drawing.Size(120, 22)
+$remoteLabel.Location = New-Object System.Drawing.Point(532, 42)
+$remoteLabel.Size = New-Object System.Drawing.Size(220, 22)
 $filesTab.Controls.Add($remoteLabel)
 
 $script:LocalPathText = New-Object System.Windows.Forms.TextBox
 $script:LocalPathText.Text = [Environment]::GetFolderPath("MyDocuments")
-$script:LocalPathText.Location = New-Object System.Drawing.Point(14, 68)
-$script:LocalPathText.Size = New-Object System.Drawing.Size(354, 24)
-$script:LocalPathText.Anchor = "Top,Left"
+$script:LocalPathText.Location = New-Object System.Drawing.Point(532, 68)
+$script:LocalPathText.Size = New-Object System.Drawing.Size(336, 24)
+$script:LocalPathText.Anchor = "Top,Left,Right"
 $script:LocalPathText.Add_KeyDown({
     if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
         Refresh-LocalFiles
@@ -688,21 +688,23 @@ $filesTab.Controls.Add($script:LocalPathText)
 
 $localBrowse = New-Button "Browse" ([System.Drawing.Color]::FromArgb(14, 116, 144))
 $localBrowse.Size = New-Object System.Drawing.Size(84, 28)
-$localBrowse.Location = New-Object System.Drawing.Point(374, 66)
+$localBrowse.Location = New-Object System.Drawing.Point(876, 66)
+$localBrowse.Anchor = "Top,Right"
 $localBrowse.Add_Click({ Browse-LocalFolder })
 $filesTab.Controls.Add($localBrowse)
 
 $localUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105))
 $localUp.Size = New-Object System.Drawing.Size(48, 28)
-$localUp.Location = New-Object System.Drawing.Point(464, 66)
+$localUp.Location = New-Object System.Drawing.Point(966, 66)
+$localUp.Anchor = "Top,Right"
 $localUp.Add_Click({ Set-LocalParent })
 $filesTab.Controls.Add($localUp)
 
 $script:RemotePathText = New-Object System.Windows.Forms.TextBox
 $script:RemotePathText.Text = $RemoteProject
-$script:RemotePathText.Location = New-Object System.Drawing.Point(500, 68)
-$script:RemotePathText.Size = New-Object System.Drawing.Size(344, 24)
-$script:RemotePathText.Anchor = "Top,Left,Right"
+$script:RemotePathText.Location = New-Object System.Drawing.Point(14, 68)
+$script:RemotePathText.Size = New-Object System.Drawing.Size(360, 24)
+$script:RemotePathText.Anchor = "Top,Left"
 $script:RemotePathText.Add_KeyDown({
     if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
         Refresh-RemoteFiles
@@ -713,21 +715,19 @@ $filesTab.Controls.Add($script:RemotePathText)
 
 $remoteRefresh = New-Button "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105))
 $remoteRefresh.Size = New-Object System.Drawing.Size(82, 28)
-$remoteRefresh.Location = New-Object System.Drawing.Point(850, 66)
-$remoteRefresh.Anchor = "Top,Right"
+$remoteRefresh.Location = New-Object System.Drawing.Point(382, 66)
 $remoteRefresh.Add_Click({ Refresh-RemoteFiles })
 $filesTab.Controls.Add($remoteRefresh)
 
 $remoteUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105))
 $remoteUp.Size = New-Object System.Drawing.Size(48, 28)
-$remoteUp.Location = New-Object System.Drawing.Point(938, 66)
-$remoteUp.Anchor = "Top,Right"
+$remoteUp.Location = New-Object System.Drawing.Point(470, 66)
 $remoteUp.Add_Click({ Set-RemoteParent })
 $filesTab.Controls.Add($remoteUp)
 
 $script:LocalList = New-FileListView
-$script:LocalList.Location = New-Object System.Drawing.Point(14, 102)
-$script:LocalList.Size = New-Object System.Drawing.Size(472, 220)
+$script:LocalList.Location = New-Object System.Drawing.Point(532, 102)
+$script:LocalList.Size = New-Object System.Drawing.Size(510, 220)
 $script:LocalList.Add_DoubleClick({
     if ($script:LocalList.SelectedItems.Count -eq 1) {
         $tag = $script:LocalList.SelectedItems[0].Tag
@@ -741,27 +741,27 @@ $script:LocalList.Add_ItemDrag({
     $paths = @(Get-SelectedFileTags $script:LocalList | ForEach-Object { $_.Path })
     if ($paths.Count -gt 0) {
         $data = New-Object System.Windows.Forms.DataObject
-        $data.SetData("KV260LocalPaths", ($paths -join "`n"))
+        $data.SetData("HostPaths", ($paths -join "`n"))
         [void]$script:LocalList.DoDragDrop($data, [System.Windows.Forms.DragDropEffects]::Copy)
     }
 })
 $script:LocalList.Add_DragEnter({
-    if ($_.Data.GetDataPresent("KV260RemotePaths")) {
+    if ($_.Data.GetDataPresent("BoardPaths")) {
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
     }
 })
 $script:LocalList.Add_DragDrop({
-    if ($_.Data.GetDataPresent("KV260RemotePaths")) {
-        $paths = ([string]$_.Data.GetData("KV260RemotePaths")) -split "`n" | Where-Object { $_ }
+    if ($_.Data.GetDataPresent("BoardPaths")) {
+        $paths = ([string]$_.Data.GetData("BoardPaths")) -split "`n" | Where-Object { $_ }
         Download-RemotePaths $paths
     }
 })
 $filesTab.Controls.Add($script:LocalList)
 
 $script:RemoteList = New-FileListView
-$script:RemoteList.Location = New-Object System.Drawing.Point(500, 102)
-$script:RemoteList.Size = New-Object System.Drawing.Size(486, 220)
-$script:RemoteList.Anchor = "Top,Bottom,Left,Right"
+$script:RemoteList.Location = New-Object System.Drawing.Point(14, 102)
+$script:RemoteList.Size = New-Object System.Drawing.Size(500, 220)
+$script:RemoteList.Anchor = "Top,Bottom,Left"
 $script:RemoteList.Add_DoubleClick({
     if ($script:RemoteList.SelectedItems.Count -eq 1) {
         $tag = $script:RemoteList.SelectedItems[0].Tag
@@ -775,12 +775,12 @@ $script:RemoteList.Add_ItemDrag({
     $paths = @(Get-SelectedFileTags $script:RemoteList | ForEach-Object { $_.Path })
     if ($paths.Count -gt 0) {
         $data = New-Object System.Windows.Forms.DataObject
-        $data.SetData("KV260RemotePaths", ($paths -join "`n"))
+        $data.SetData("BoardPaths", ($paths -join "`n"))
         [void]$script:RemoteList.DoDragDrop($data, [System.Windows.Forms.DragDropEffects]::Copy)
     }
 })
 $script:RemoteList.Add_DragEnter({
-    if ($_.Data.GetDataPresent("KV260LocalPaths") -or $_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+    if ($_.Data.GetDataPresent("HostPaths") -or $_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
     }
 })
@@ -788,20 +788,20 @@ $script:RemoteList.Add_DragDrop({
     if ($_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
         $paths = [string[]]$_.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)
         Upload-LocalPaths $paths
-    } elseif ($_.Data.GetDataPresent("KV260LocalPaths")) {
-        $paths = ([string]$_.Data.GetData("KV260LocalPaths")) -split "`n" | Where-Object { $_ }
+    } elseif ($_.Data.GetDataPresent("HostPaths")) {
+        $paths = ([string]$_.Data.GetData("HostPaths")) -split "`n" | Where-Object { $_ }
         Upload-LocalPaths $paths
     }
 })
 $filesTab.Controls.Add($script:RemoteList)
 
-$uploadButton = New-Button "Upload Selected ->" ([System.Drawing.Color]::FromArgb(5, 150, 105))
+$uploadButton = New-Button "Copy Windows -> KV260" ([System.Drawing.Color]::FromArgb(5, 150, 105))
 $uploadButton.Location = New-Object System.Drawing.Point(14, 334)
 $uploadButton.Size = New-Object System.Drawing.Size(154, 34)
 $uploadButton.Add_Click({ Upload-SelectedFiles })
 $filesTab.Controls.Add($uploadButton)
 
-$downloadButton = New-Button "<- Download Selected" ([System.Drawing.Color]::FromArgb(37, 99, 235))
+$downloadButton = New-Button "Copy KV260 -> Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235))
 $downloadButton.Location = New-Object System.Drawing.Point(174, 334)
 $downloadButton.Size = New-Object System.Drawing.Size(166, 34)
 $downloadButton.Add_Click({ Download-SelectedFiles })
@@ -838,7 +838,7 @@ Add-ButtonToPanel $notebookPanel "Shutdown KV260" ([System.Drawing.Color]::FromA
 
 $script:OutputBox = New-Object System.Windows.Forms.TextBox
 $script:OutputBox.Location = New-Object System.Drawing.Point(24, 524)
-$script:OutputBox.Size = New-Object System.Drawing.Size(980, 126)
+$script:OutputBox.Size = New-Object System.Drawing.Size(1060, 126)
 $script:OutputBox.Anchor = "Top,Bottom,Left,Right"
 $script:OutputBox.Multiline = $true
 $script:OutputBox.ReadOnly = $true
@@ -853,7 +853,7 @@ $footer.Text = "Windows X11 apps use VcXsrv. Camera apps are exclusive because /
 $footer.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $footer.ForeColor = [System.Drawing.Color]::FromArgb(100, 116, 139)
 $footer.Location = New-Object System.Drawing.Point(24, 666)
-$footer.Size = New-Object System.Drawing.Size(980, 20)
+$footer.Size = New-Object System.Drawing.Size(1060, 20)
 $footer.Anchor = "Bottom,Left,Right"
 $form.Controls.Add($footer)
 
