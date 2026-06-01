@@ -113,10 +113,17 @@ These are absolute V4L2 driver values on this board. The official IMX636 SDK doc
 
 ## Implementation Decision
 
-The custom viewer now keeps the direct V4L2 capture path because it is the most reliable path on this PetaLinux image. It implements the OpenEB-style parts that matter for daily use:
+The custom viewer keeps the direct V4L2 capture path because it is the most reliable path on this PetaLinux image. The implementation deliberately separates live display from recording playback:
+
+- Live camera preview uses the original immediate draw-and-decay path. Every V4L2 payload is decoded, painted directly into the preview canvas, then faded between frames. This matched the old working viewer and stayed live in the 5-second regression test.
+- Recording playback uses the OpenEB-inspired timestamp accumulation path. This is where the 10 ms accumulation window is useful, because the event timestamps are available in controlled file chunks.
+
+A previous attempt to use the timestamp accumulator for live V4L2 streaming caused the app to show an initial burst of events and then gradually fade/static on the board. The current code therefore avoids the timestamp renderer in the live hot path.
+
+It implements the OpenEB-style parts that matter for daily use:
 
 - Timestamp-aware EVT2.1 decoding.
-- 10 ms default display accumulation.
+- 10 ms default display accumulation for playback.
 - 30 FPS default rendering.
 - Dark/light/gray/cool-warm palettes.
 - ON/OFF/all polarity filtering.

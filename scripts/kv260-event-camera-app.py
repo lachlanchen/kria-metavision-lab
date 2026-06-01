@@ -336,7 +336,7 @@ class EventFrameRenderer:
         self.palette_name = "Dark"
         self.polarity_mode = "All"
         self.point_radius = 1
-        self.trail = 0.99
+        self.trail = 0.82
         self.show_osd = True
         self.last_frame = None
         self.last_batch_wall_time = 0.0
@@ -501,7 +501,13 @@ class V4L2EventStream:
         self.thread = None
         self.fd = None
         self.buffers = []
-        self.decoder = EVT21Decoder()
+        self.display = np.zeros((VIEW_H, VIEW_W, 3), dtype=np.uint8)
+        self.point_radius = 1
+        self.decay = 0.82
+        self.frame_interval = 0.033
+        self.polarity_mode = "All"
+        self.on_color = (60, 210, 130)
+        self.off_color = (230, 80, 60)
         self.record_lock = threading.Lock()
         self.record_file = None
         self.record_path = None
@@ -511,10 +517,24 @@ class V4L2EventStream:
         self.total_buffers = 0
         self.rate_mev_s = 0.0
 
+    def apply_render_settings(self, settings):
+        self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
+        self.decay = max(0.0, min(0.995, float(settings.get("trail", self.decay))))
+        fps = max(1, min(90, int(settings.get("fps", round(1.0 / self.frame_interval)))))
+        self.frame_interval = 1.0 / fps
+        polarity = settings.get("polarity", self.polarity_mode)
+        if polarity in ("All", "ON", "OFF"):
+            self.polarity_mode = polarity
+        palette = PALETTES.get(settings.get("palette", "Dark"), PALETTES["Dark"])
+        self.on_color = palette["on"]
+        self.off_color = palette["off"]
+
     def start(self):
         self.stop_event.clear()
-        self.renderer.reset()
-        self.decoder.reset()
+        self.total_events = 0
+        self.total_buffers = 0
+        self.rate_mev_s = 0.0
+        self.display[:] = 0
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
@@ -618,7 +638,6 @@ class V4L2EventStream:
             while not self.stop_event.is_set():
                 ready, _, _ = select.select([self.fd], [], [], 0.2)
                 if not ready:
-                    last_frame_time = self._maybe_emit_frame("Live", last_frame_time)
                     continue
 
                 buf = V4L2Buffer()
@@ -630,33 +649,28 @@ class V4L2EventStream:
                     continue
 
                 payload = self.buffers[buf.index][: buf.bytesused]
-                batch = self.decoder.decode(payload)
-                if batch.count:
-                    self.renderer.add_batch(batch)
-                    self.total_events += batch.count
+                events = self._decode_and_draw(payload)
+                self.total_events += events
                 self.total_buffers += 1
 
                 with self.record_lock:
                     if self.record_file:
                         self.record_file.write(payload)
                         self.record_bytes += len(payload)
-                        self.record_events += batch.count
+                        self.record_events += events
 
                 now = time.monotonic()
-                settings = self.renderer.snapshot_settings()
-                if now - last_frame_time >= 1.0 / max(1, settings["fps"]):
+                if now - last_frame_time > self.frame_interval:
                     last_frame_time = now
-                    self.on_frame(self.renderer.render_frame("Live", self.rate_mev_s, self.is_recording(), False))
+                    self.on_frame(self.display.copy())
+                    self.display[:] = (self.display.astype(np.float32) * self.decay).astype(np.uint8)
                 if now - last_rate_time >= 1.0:
                     delta_events = self.total_events - last_rate_events
                     last_rate_events = self.total_events
                     last_rate_time = now
                     self.rate_mev_s = delta_events / 1_000_000.0
-                    rec = " recording" if self.is_recording() else ""
-                    self.on_status(
-                        "Live: %.2f Mev/s, buffers=%s, events=%s%s"
-                        % (self.rate_mev_s, self.total_buffers, self.total_events, rec)
-                    )
+                    rec = " recording" if self.record_file else ""
+                    self.on_status("Live: %.2f Mev/s, buffers=%s%s" % (self.rate_mev_s, self.total_buffers, rec))
 
                 fcntl.ioctl(self.fd, VIDIOC_QBUF, buf)
         except Exception as exc:
@@ -666,13 +680,85 @@ class V4L2EventStream:
             self.stop_recording()
             self.on_status("Camera stream closed.")
 
-    def _maybe_emit_frame(self, label, last_frame_time):
-        now = time.monotonic()
-        settings = self.renderer.snapshot_settings()
-        if now - last_frame_time >= 1.0 / max(1, settings["fps"]):
-            self.on_frame(self.renderer.render_frame(label, self.rate_mev_s, self.is_recording(), False))
-            return now
-        return last_frame_time
+    def _decode_and_draw(self, payload):
+        usable = len(payload) - (len(payload) % 8)
+        if usable <= 0:
+            return 0
+
+        words = np.frombuffer(payload[:usable], dtype="<u8")
+        event_type = (words >> np.uint64(60)) & np.uint64(0xF)
+        cd = (
+            (event_type == np.uint64(0))
+            | (event_type == np.uint64(1))
+            | (event_type == np.uint64(4))
+            | (event_type == np.uint64(5))
+        )
+        if not np.any(cd):
+            return 0
+
+        cd_words = words[cd]
+        cd_type = event_type[cd]
+        x_base = ((cd_words >> np.uint64(43)) & np.uint64(0x7FF)).astype(np.int32)
+        y_base = ((cd_words >> np.uint64(32)) & np.uint64(0x7FF)).astype(np.int32)
+        vx = (cd_words & np.uint64(0xFFFFFFFF)).astype(np.uint32)
+        valid = (x_base >= 0) & (x_base < WIDTH) & (y_base >= 0) & (y_base < HEIGHT) & (vx != 0)
+        if not np.any(valid):
+            return 0
+
+        x_base = x_base[valid]
+        y_base = y_base[valid]
+        vx = vx[valid]
+        cd_type = cd_type[valid]
+
+        xs = []
+        ys = []
+        pols = []
+        for bit in range(32):
+            bit_mask = ((vx >> np.uint32(bit)) & np.uint32(1)) != 0
+            if not np.any(bit_mask):
+                continue
+            xs.append(x_base[bit_mask] + bit)
+            ys.append(y_base[bit_mask])
+            pols.append(cd_type[bit_mask])
+        if not xs:
+            return 0
+
+        x = np.concatenate(xs)
+        y = np.concatenate(ys)
+        pol = np.concatenate(pols)
+        valid_xy = (x >= 0) & (x < WIDTH) & (y >= 0) & (y < HEIGHT)
+        if not np.any(valid_xy):
+            return 0
+
+        x = x[valid_xy]
+        y = y[valid_xy]
+        pol = pol[valid_xy]
+
+        x = ((x * VIEW_W) // WIDTH).clip(0, VIEW_W - 1)
+        y = ((y * VIEW_H) // HEIGHT).clip(0, VIEW_H - 1)
+        off = (pol == 0) | (pol == 4)
+        on = ~off
+        if self.polarity_mode == "ON":
+            off[:] = False
+        elif self.polarity_mode == "OFF":
+            on[:] = False
+
+        radius = max(0, min(4, int(self.point_radius)))
+        if radius == 0:
+            if np.any(off):
+                self.display[y[off], x[off]] = self.off_color
+            if np.any(on):
+                self.display[y[on], x[on]] = self.on_color
+        else:
+            for dy in range(-radius, radius + 1):
+                yy = (y + dy).clip(0, VIEW_H - 1)
+                for dx in range(-radius, radius + 1):
+                    xx = (x + dx).clip(0, VIEW_W - 1)
+                    if np.any(off):
+                        self.display[yy[off], xx[off]] = self.off_color
+                    if np.any(on):
+                        self.display[yy[on], xx[on]] = self.on_color
+        return int(len(x))
 
 
 class PSE2RecordingPlayer:
@@ -995,7 +1081,7 @@ class EventCameraApp(Gtk.Window):
         grid = Gtk.Grid(column_spacing=10, row_spacing=8)
         grid.set_border_width(8)
 
-        grid.attach(Gtk.Label(label="Accumulation ms"), 0, 0, 1, 1)
+        grid.attach(Gtk.Label(label="Playback accumulation ms"), 0, 0, 1, 1)
         self.accum_spin = Gtk.SpinButton.new_with_range(1, 200, 1)
         self.accum_spin.set_value(10)
         self.accum_spin.connect("value-changed", self.on_render_setting_changed)
@@ -1030,20 +1116,20 @@ class EventCameraApp(Gtk.Window):
         grid.attach(self.radius_spin, 3, 1, 1, 1)
 
         grid.attach(Gtk.Label(label="Event trail"), 4, 1, 1, 1)
-        self.trail_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 0.995, 0.005)
+        self.trail_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.50, 0.995, 0.005)
         self.trail_scale.set_digits(3)
-        self.trail_scale.set_value(0.99)
+        self.trail_scale.set_value(0.82)
         self.trail_scale.set_hexpand(True)
         self.trail_scale.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.trail_scale, 5, 1, 2, 1)
 
-        self.osd_check = Gtk.CheckButton(label="Show OSD overlay")
+        self.osd_check = Gtk.CheckButton(label="Playback OSD overlay")
         self.osd_check.set_active(True)
         self.osd_check.connect("toggled", self.on_render_setting_changed)
         grid.attach(self.osd_check, 0, 2, 2, 1)
 
         hint = Gtk.Label(
-            label="Default-like preview uses 10 ms accumulation at 30 FPS. Increase accumulation for sparse scenes; use ON/OFF polarity to inspect threshold balance."
+            label="Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance."
         )
         hint.set_xalign(0)
         hint.set_line_wrap(True)
@@ -1213,9 +1299,11 @@ class EventCameraApp(Gtk.Window):
             palette=palette,
             polarity=polarity,
             point_radius=self.radius_spin.get_value() if hasattr(self, "radius_spin") else 1,
-            trail=self.trail_scale.get_value() if hasattr(self, "trail_scale") else 0.99,
+            trail=self.trail_scale.get_value() if hasattr(self, "trail_scale") else 0.82,
             osd=self.osd_check.get_active() if hasattr(self, "osd_check") else True,
         )
+        if isinstance(self.source, V4L2EventStream):
+            self.source.apply_render_settings(self.renderer.snapshot_settings())
 
     def on_open_camera(self, _button):
         if self.source:
@@ -1224,6 +1312,7 @@ class EventCameraApp(Gtk.Window):
         self.stop_native_viewer()
         device = self.device_entry.get_text().strip() or DEFAULT_DEVICE
         self.source = V4L2EventStream(device, self.renderer, self.on_frame, self.set_status)
+        self.source.apply_render_settings(self.renderer.snapshot_settings())
         self.source_mode = "Live"
         self.source.start()
         self.update_controls()

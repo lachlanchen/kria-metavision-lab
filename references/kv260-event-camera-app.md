@@ -84,7 +84,7 @@ Size: 1280x720
 
 The app decodes the PSE2/EVT2.1 V4L2 byte stream directly and renders events in a GTK window. The preview expands the EVT2.1 32-bit `vx` vector inside each 64-bit event word, so one event-vector word can draw up to 32 neighboring x positions. This avoids the vertical stripe artifact caused by drawing only the vector base x coordinate.
 
-The current app also decodes EVT2.1 timestamps and renders with a Metavision-style accumulation window. The default display is 10 ms accumulation at 30 FPS, matching the native viewer pattern used by OpenEB/Metavision examples.
+The current app keeps the original known-good live renderer: every live PSE2 payload is painted immediately, then the canvas decays between frames. Recording playback uses the newer EVT2.1 timestamp path with a Metavision-style accumulation window. This split is intentional: the timestamp accumulator is useful for recordings, but it made the live camera show an initial burst and then fade/static on this board.
 
 ## Controls
 
@@ -100,13 +100,13 @@ The current app also decodes EVT2.1 timestamps and renders with a Metavision-sty
 - `Folder`: output folder for recordings.
 - `File`: output filename.
 - `Video node`: V4L2 node, default `/dev/video0`.
-- `Accumulation ms`: event time window used for each frame.
-- `FPS`: preview refresh target.
-- `Palette`: dark, light, gray, or cool/warm event palette.
+- `Playback accumulation ms`: event time window used for recording playback frames.
+- `FPS`: live preview and playback refresh target.
+- `Palette`: dark, light, gray, or cool/warm event colors.
 - `Polarity`: show all events, only ON events, or only OFF events.
 - `Point radius`: event dot size. Increase this if the view looks too sparse.
-- `Event trail`: smooth display fade after the current accumulation window. The default is `0.990`, which avoids a sudden dark screen during quiet periods without keeping stale events forever.
-- `Show OSD overlay`: shows source, rate, recording/playback state, and accumulation on the preview.
+- `Event trail`: live-display persistence/decay. The default is `0.820`, matching the older working preview behavior.
+- `Playback OSD overlay`: shows source, rate, playback state, and accumulation during recording playback.
 
 The `Biases` tab reads daily-use controls from `/dev/v4l-subdev3`:
 
@@ -200,16 +200,21 @@ module import: OK
 existing .pse2.raw replay decode: 59459 events from first 512 KiB, nonblank rendered frame
 bias probe: bias_diff_on/off, bias_hpf, bias_fo, bias_refr, bias_diff found on /dev/v4l-subdev3
 GUI smoke: starts on DISPLAY=:0 with auto-open disabled and exits through the local command socket
-live stream smoke: /dev/video0 opened, 71140 events, 31 buffers, 31 frames in about 3 seconds
-idle preview regression: stale frames no longer freeze; with default trail `0.990`, events fade gradually during quiet periods instead of going dark immediately
+old commit comparison: 80910d3 live path produced 234925 events, 223 buffers, 122 frames in 5 seconds
+live renderer regression fix: restored immediate draw-and-decay live path; current path produced 268045 events, 217 buffers, 117 frames in 5 seconds
+live continuity check: after the first 2 seconds, 71 of 71 emitted frames changed instead of fading static
+playback smoke: /home/petalinux/event_recordings/event_20260531_183748.pse2.raw decoded 59459 events from first 512 KiB and rendered nonblank
 ```
 
 Direct stream test:
 
 ```text
-Camera stream open: /dev/video0 (1280x720 PSE2)
-Live: 0.15 Mev/s, buffers=24
-SUMMARY events=163116 buffers=38 frames=24
+Live camera open: /dev/video0 (1280x720 PSE2)
+Live: 0.07 Mev/s, buffers=38
+Live: 0.04 Mev/s, buffers=88
+Live: 0.05 Mev/s, buffers=133
+Live: 0.05 Mev/s, buffers=176
+RESULT frames=117 diffs=116 after_2s_frames=71 after_2s_diffs=71 events=268045 buffers=217
 ```
 
 The fixed preview image was generated at:
