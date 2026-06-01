@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$HostAlias = "petalinux-kv260"
+    [string]$HostAlias = "petalinux-kv260",
+    [switch]$InstallDirectShortcuts
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,35 +19,52 @@ function New-KV260Shortcut {
         [string]$Path,
         [string]$ScriptName,
         [string]$Description,
-        [string]$IconLocation
+        [string]$IconLocation,
+        [string]$WindowStyle = "Hidden"
     )
 
     $scriptPath = Join-Path $InstallDir $ScriptName
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($Path)
     $shortcut.TargetPath = $PowerShellExe
-    $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`" -HostAlias `"$HostAlias`""
+    $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle $WindowStyle -File `"$scriptPath`" -HostAlias `"$HostAlias`""
     $shortcut.WorkingDirectory = $InstallDir
     $shortcut.Description = $Description
     $shortcut.IconLocation = $IconLocation
     $shortcut.Save()
 }
 
+$controlShortcutName = "KV260 Event Camera.lnk"
 $boardShortcutName = "KV260 Event Camera - Board Desktop.lnk"
 $x11ShortcutName = "KV260 Event Camera - Windows X11.lnk"
 
 foreach ($folder in @($DesktopDir, $StartMenuDir)) {
-    New-KV260Shortcut `
-        -Path (Join-Path $folder $boardShortcutName) `
-        -ScriptName "Start-KV260EventCamera-BoardDesktop.ps1" `
-        -Description "Open or raise the KV260 Event Camera app on the board HDMI desktop." `
-        -IconLocation "$IconDll,102"
+    foreach ($name in @($controlShortcutName, $boardShortcutName, $x11ShortcutName)) {
+        Remove-Item -Force -ErrorAction SilentlyContinue -Path (Join-Path $folder $name)
+    }
+}
 
+foreach ($folder in @($DesktopDir, $StartMenuDir)) {
     New-KV260Shortcut `
-        -Path (Join-Path $folder $x11ShortcutName) `
-        -ScriptName "Start-KV260EventCamera-X11.ps1" `
-        -Description "Open the KV260 Event Camera app on Windows using SSH X11 forwarding." `
-        -IconLocation "$IconDll,100"
+        -Path (Join-Path $folder $controlShortcutName) `
+        -ScriptName "Open-KV260EventCamera.ps1" `
+        -Description "Choose where to run the KV260 Event Camera GUI." `
+        -IconLocation "$IconDll,102" `
+        -WindowStyle "Normal"
+
+    if ($InstallDirectShortcuts) {
+        New-KV260Shortcut `
+            -Path (Join-Path $folder $boardShortcutName) `
+            -ScriptName "Start-KV260EventCamera-BoardDesktop.ps1" `
+            -Description "Open or raise the KV260 Event Camera app on the board HDMI desktop." `
+            -IconLocation "$IconDll,102"
+
+        New-KV260Shortcut `
+            -Path (Join-Path $folder $x11ShortcutName) `
+            -ScriptName "Start-KV260EventCamera-X11.ps1" `
+            -Description "Open the KV260 Event Camera app on Windows using SSH X11 forwarding." `
+            -IconLocation "$IconDll,100"
+    }
 }
 
 $sshd = Get-Service -Name sshd -ErrorAction SilentlyContinue
@@ -62,9 +80,13 @@ if ($sshd) {
 }
 
 Write-Host "Installed KV260 shortcuts:"
-Write-Host "  $DesktopDir\$boardShortcutName"
-Write-Host "  $DesktopDir\$x11ShortcutName"
-Write-Host "  $StartMenuDir\$boardShortcutName"
-Write-Host "  $StartMenuDir\$x11ShortcutName"
+Write-Host "  $DesktopDir\$controlShortcutName"
+Write-Host "  $StartMenuDir\$controlShortcutName"
+if ($InstallDirectShortcuts) {
+    Write-Host "  $DesktopDir\$boardShortcutName"
+    Write-Host "  $DesktopDir\$x11ShortcutName"
+    Write-Host "  $StartMenuDir\$boardShortcutName"
+    Write-Host "  $StartMenuDir\$x11ShortcutName"
+}
 Write-Host ""
 Write-Host "For taskbar access, right-click either Start Menu shortcut and choose 'Pin to taskbar'."

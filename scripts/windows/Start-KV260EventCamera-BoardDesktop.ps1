@@ -21,7 +21,7 @@ function Show-KV260Message {
 }
 
 $ssh = (Get-Command ssh.exe -ErrorAction Stop).Source
-$remoteCommand = "cd $RemoteProject && DISPLAY=:0 XAUTHORITY=/home/petalinux/.Xauthority ./scripts/kv260-event-camera-app.sh"
+$remoteCommand = "cd $RemoteProject && ./scripts/kv260-event-camera-switch.sh --board"
 
 if ($CheckOnly) {
     & $ssh -o BatchMode=yes $HostAlias "echo kv260-board-ok"

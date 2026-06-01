@@ -49,18 +49,22 @@ The desktop installer creates two launchers:
 
 The stable desktop setup keeps only those two system Applications entries and removes duplicate Desktop shortcuts. If Matchbox gets stuck with a busy cursor, use the recovery note in `references/kv260-desktop-stall-recovery.md`.
 
-Windows shortcuts are also available for one-click SSH launch:
+Windows also has a single launcher panel for switching where the GUI runs:
 
-| Shortcut | Behavior |
+| Action | Behavior |
 | --- | --- |
-| `KV260 Event Camera - Board Desktop` | Opens or raises the custom GUI on the KV260 HDMI desktop from Windows |
-| `KV260 Event Camera - Windows X11` | Starts VcXsrv and opens the custom GUI on Windows through SSH X forwarding |
+| `Open On Windows` | Stops the board GUI first, then opens the custom GUI on Windows through SSH X forwarding |
+| `Open On KV260 Display` | Stops the Windows X11 GUI first, then opens or raises the custom GUI on the KV260 HDMI desktop |
+| `Stop All Viewers` | Releases `/dev/video0` cleanly |
 
 Main files:
 
 ```text
 scripts/kv260-event-camera-app.py
 scripts/kv260-event-camera-app.sh
+scripts/kv260-event-camera-switch.sh
+scripts/kv260-event-camera-x11.sh
+scripts/windows/Open-KV260EventCamera.ps1
 scripts/kv260-metavision-viewer-toggle.sh
 scripts/kv260-install-prophesee-desktop.sh
 scripts/kv260-launch-desktop-viewer.sh

@@ -20,13 +20,13 @@ Run `metavision_viewer` on the KV260 board display from Windows <windows-ip> usi
 
 ## OpenSSH client flow (recommended)
 
-For the custom app, prefer the maintained Windows shortcuts documented in:
+For the custom app, prefer the maintained Windows launcher panel documented in:
 
 ```text
 references/kv260-windows-shortcuts-x11.md
 ```
 
-Those shortcuts start VcXsrv and run `scripts/kv260-event-camera-x11.sh` automatically.
+That launcher starts VcXsrv, runs `scripts/kv260-event-camera-switch.sh --x11`, and stops the board desktop GUI first so `/dev/video0` can move to the Windows X11 viewer.
 
 Manual flow:
 

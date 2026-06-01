@@ -37,7 +37,7 @@ function Find-VcXsrv {
 try {
     $vcxsrv = Find-VcXsrv
     $ssh = (Get-Command ssh.exe -ErrorAction Stop).Source
-    $remoteCommand = "cd $RemoteProject && ./scripts/kv260-event-camera-x11.sh"
+    $remoteCommand = "cd $RemoteProject && ./scripts/kv260-event-camera-switch.sh --x11"
 
     if ($CheckOnly) {
         if ($vcxsrv) {
@@ -65,8 +65,8 @@ try {
 
     Start-Process `
         -FilePath $ssh `
-        -ArgumentList @("-Y", "-o", "ForwardX11Trusted=yes", "-o", "BatchMode=yes", $HostAlias, $remoteCommand) `
-        -WindowStyle Minimized
+        -ArgumentList @("-q", "-Y", "-o", "ForwardX11Trusted=yes", "-o", "BatchMode=yes", $HostAlias, $remoteCommand) `
+        -WindowStyle Hidden
 } catch {
     "[$(Get-Date -Format s)] ERROR $($_.Exception.Message)" | Out-File -FilePath $LogFile -Append -Encoding utf8
     Show-KV260Message "Could not open the KV260 X11 viewer. Check $LogFile"
