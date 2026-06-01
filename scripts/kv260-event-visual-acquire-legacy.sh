@@ -1,9 +1,8 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-DATA_DIR="${KV260_EVENT_VISUAL_DIR:-$PROJECT_DIR/recordings/event-visual}"
+USER_HOME="${HOME:-/home/petalinux}"
+DATA_DIR="${KV260_EVENT_VISUAL_DIR:-$USER_HOME/event-visual}"
 LOG_LOOP="$DATA_DIR/loop.log"
 LOG_SESSION="$DATA_DIR/session.log"
 MAX_FILES="${KV260_EVENT_VISUAL_MAX_FILES:-20}"

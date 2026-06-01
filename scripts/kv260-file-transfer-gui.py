@@ -28,6 +28,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 CONFIG_PATH = CONFIG_DIR / "kv260-file-transfer.json"
 DEFAULT_LOCAL_PATH = str(Path.home())
+DEFAULT_RECORDINGS_PATH = os.path.expanduser(os.environ.get("KV260_EVENT_RECORD_DIR", "~/event_recordings"))
 DEFAULT_REMOTE_PATH = os.environ.get("KV260_REMOTE_FILE_ROOT", "C:/Users/Administrator/Projects/petalinux")
 
 
@@ -356,7 +357,7 @@ class TransferApp(Gtk.Window):
         new_remote.connect("clicked", lambda _button: self.new_folder(True))
         actions.pack_start(new_remote, False, False, 0)
         open_recordings = Gtk.Button(label="Recordings")
-        open_recordings.connect("clicked", lambda _button: (self.local_pane.set_path(str(PROJECT_DIR / "recordings")), self.refresh_local()))
+        open_recordings.connect("clicked", lambda _button: (self.local_pane.set_path(DEFAULT_RECORDINGS_PATH), self.refresh_local()))
         actions.pack_start(open_recordings, False, False, 0)
 
         self.progress = Gtk.ProgressBar()

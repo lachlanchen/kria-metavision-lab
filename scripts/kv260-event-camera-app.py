@@ -46,7 +46,7 @@ HEIGHT = 720
 VIEW_W = 960
 VIEW_H = 540
 DEFAULT_RECORD_DIR = os.path.expanduser(
-    os.environ.get("KV260_EVENT_RECORD_DIR", os.path.join(PROJECT_DIR, "recordings", "event-camera"))
+    os.environ.get("KV260_EVENT_RECORD_DIR", os.path.join("~", "event_recordings"))
 )
 APP_LOCK_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_LOCK_PATH", "/tmp/kv260-event-camera-app.lock")
 APP_SOCKET_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_SOCKET", "/tmp/kv260-event-camera-app.sock")

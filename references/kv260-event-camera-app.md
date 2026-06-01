@@ -128,7 +128,7 @@ The app auto-opens the camera when launched from the desktop.
 Default output folder:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+/home/petalinux/event_recordings
 ```
 
 Default filename pattern:

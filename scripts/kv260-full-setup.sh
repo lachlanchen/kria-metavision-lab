@@ -21,6 +21,7 @@ WINDOWS_DEST="${KV260_WINDOWS_DEST:-}"
 WINDOWS_BOARD_ALIAS="${KV260_WINDOWS_BOARD_ALIAS:-petalinux-kv260}"
 WINDOWS_DIRECT_SHORTCUTS=0
 DRY_RUN=0
+RECORD_HOME="${KV260_RECORD_HOME:-}"
 
 log() {
   printf '[kv260-setup] %s\n' "$*"
@@ -185,6 +186,27 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+resolve_record_home() {
+  if [ -n "${RECORD_HOME}" ]; then
+    printf '%s\n' "${RECORD_HOME}"
+    return
+  fi
+  if [ -n "${KV260_DESKTOP_USER:-}" ] && have getent; then
+    user_home="$(getent passwd "${KV260_DESKTOP_USER}" | awk -F: '{print $6}' 2>/dev/null || true)"
+    if [ -n "${user_home}" ]; then
+      printf '%s\n' "${user_home}"
+      return
+    fi
+  fi
+  if [ -d /home/petalinux ]; then
+    printf '%s\n' /home/petalinux
+    return
+  fi
+  printf '%s\n' "${HOME:-/home/petalinux}"
+}
+
+RECORD_HOME="$(resolve_record_home)"
+
 run_priv() {
   if [ "$(id -u)" -eq 0 ]; then
     run "$@"
@@ -232,10 +254,10 @@ run_priv_sh() {
 ensure_dirs() {
   log "Preparing project directories"
   run mkdir -p \
-    "${PROJECT_DIR}/recordings/event-camera" \
-    "${PROJECT_DIR}/recordings/event-visual" \
+    "${RECORD_HOME}/event_recordings" \
+    "${RECORD_HOME}/event-visual" \
     "${PROJECT_DIR}/references" \
-    "${HOME:-/home/petalinux}/.cache/kv260-event-camera"
+    "${RECORD_HOME}/.cache/kv260-event-camera"
 }
 
 ensure_script_modes() {
@@ -498,7 +520,7 @@ Board launchers:
   KV260 File Transfer
 
 Recording folder:
-  ${PROJECT_DIR}/recordings/event-camera
+  ${RECORD_HOME}/event_recordings
 
 Validate again:
   cd ${PROJECT_DIR}

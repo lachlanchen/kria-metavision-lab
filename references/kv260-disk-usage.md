@@ -25,7 +25,7 @@ Large home-directory items observed before cleanup:
 /home/petalinux/Projects           about 22M
 ```
 
-Cleanup on 2026-06-01 moved the large event recording folders into the starter project:
+Cleanup on 2026-06-01 briefly moved the large event recording folders into the starter project:
 
 ```text
 /home/petalinux/Projects/kria-kv260-starter/recordings/event-visual-legacy
@@ -33,6 +33,13 @@ Cleanup on 2026-06-01 moved the large event recording folders into the starter p
 ```
 
 The `recordings/` directory is ignored by git, so these large `.raw` files stay local and are not pushed to GitHub.
+
+That policy was later reverted for usability. New captures default back to:
+
+```text
+/home/petalinux/event_recordings
+/home/petalinux/event-visual
+```
 
 ## `ncdu` Package Status
 

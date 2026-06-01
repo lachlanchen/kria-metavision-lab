@@ -58,6 +58,8 @@ The desktop installer creates two launchers:
 
 The stable desktop setup keeps only those two system Applications entries and removes duplicate Desktop shortcuts. If Matchbox gets stuck with a busy cursor, use the recovery note in `references/kv260-desktop-stall-recovery.md`.
 
+By default, generated event recordings stay outside the repo in `/home/petalinux/event_recordings`; the legacy raw acquisition loop uses `/home/petalinux/event-visual`.
+
 Windows also has a single `KV260 Control Center` launcher for the camera, common board GUI apps, Jupyter, and board power actions:
 
 | Action | Behavior |

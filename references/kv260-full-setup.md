@@ -145,19 +145,25 @@ If a package is absent from the feed, setup continues.
 Current custom GUI recording default:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+/home/petalinux/event_recordings
 ```
 
 Legacy `v4l2-ctl` acquisition script output default:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-visual
+/home/petalinux/event-visual
 ```
 
 Override custom GUI recording location:
 
 ```sh
 KV260_EVENT_RECORD_DIR=/media/sdcard/events ./scripts/kv260-full-setup.sh
+```
+
+Override the home folder that setup prepares:
+
+```sh
+KV260_RECORD_HOME=/home/petalinux ./scripts/kv260-full-setup.sh
 ```
 
 ## Validation

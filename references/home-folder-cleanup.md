@@ -2,7 +2,9 @@
 
 Updated: 2026-06-01
 
-This note records the cleanup of `/home/petalinux` so project files live under `~/Projects` and generated recordings do not clutter the home directory.
+This note records the cleanup of `/home/petalinux` so source/project files live under `~/Projects` while generated event recordings stay in simple home-folder capture directories.
+
+Update on 2026-06-01: recordings were briefly moved into the repo-local ignored `recordings/` tree. The policy is now reverted: new captures default to `/home/petalinux/event_recordings` and `/home/petalinux/event-visual`.
 
 ## What `event-visual` Was
 
@@ -28,18 +30,30 @@ scripts/kv260-event-camera-app.py
 
 ## Moves Completed
 
-Legacy native event-visual recordings:
+Legacy native event-visual recordings were temporarily moved:
 
 ```text
 /home/petalinux/event-visual
 -> /home/petalinux/Projects/kria-kv260-starter/recordings/event-visual-legacy
 ```
 
-Custom GUI event recordings:
+They were later moved back to:
+
+```text
+/home/petalinux/event-visual
+```
+
+Custom GUI event recordings were temporarily moved:
 
 ```text
 /home/petalinux/event_recordings
 -> /home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+```
+
+They were later moved back to:
+
+```text
+/home/petalinux/event_recordings
 ```
 
 Legacy acquisition script:
@@ -113,19 +127,19 @@ KRobotics FPGA reference clone:
 Current custom GUI recordings:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+/home/petalinux/event_recordings
 ```
 
 Legacy native `v4l2-ctl` recordings:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-visual-legacy
+/home/petalinux/event-visual
 ```
 
 New legacy acquisition output default:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-visual
+/home/petalinux/event-visual
 ```
 
 ## Recording Defaults
@@ -133,7 +147,7 @@ New legacy acquisition output default:
 The custom app, control panel, and validation script now default to:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+/home/petalinux/event_recordings
 ```
 
 Override when needed:
@@ -145,7 +159,7 @@ KV260_EVENT_RECORD_DIR=/some/other/folder ./scripts/kv260-event-camera-app.sh
 The legacy acquisition script now defaults to:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-visual
+/home/petalinux/event-visual
 ```
 
 Override when needed:
@@ -156,17 +170,23 @@ KV260_EVENT_VISUAL_DIR=/some/other/folder ./scripts/kv260-event-visual-acquire-l
 
 ## Git Tracking
 
-The `recordings/` folder is intentionally ignored by `.gitignore`.
+The repo-local `recordings/` folder remains ignored by `.gitignore` for safety, but it is no longer the default capture location.
 
-That means large `.raw` files stay on disk for experiments but are not pushed to GitHub.
+The current default keeps large `.raw` and `.pse2.raw` captures under `/home/petalinux`, outside the repo working tree.
 
 ## Validation
 
-After the cleanup, the event camera validation passed and confirmed the new default recording directory:
+After the original cleanup, validation passed with the temporary repo-local recording directory:
 
 ```text
 VALIDATION_RESULT=PASS
 record_dir=/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+```
+
+Current validation runs now default to:
+
+```text
+/home/petalinux/event_recordings
 ```
 
 Latest cleanup validation report:

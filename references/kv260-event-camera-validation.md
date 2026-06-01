@@ -36,7 +36,7 @@ Reports are written outside the repo by default:
 Recordings are written to:
 
 ```text
-/home/petalinux/Projects/kria-kv260-starter/recordings/event-camera
+/home/petalinux/event_recordings
 ```
 
 ## Latest Deep Validation
