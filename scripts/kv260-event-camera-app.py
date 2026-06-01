@@ -622,6 +622,8 @@ class V4L2EventStream:
         self.total_buffers = 0
         self.rate_mev_s = 0.0
         self.preview_errors = 0
+        self.preview_decoded_buffers = 0
+        self.preview_skipped_buffers = 0
 
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
@@ -641,6 +643,8 @@ class V4L2EventStream:
         self.total_buffers = 0
         self.rate_mev_s = 0.0
         self.preview_errors = 0
+        self.preview_decoded_buffers = 0
+        self.preview_skipped_buffers = 0
         self.display[:] = 0
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
@@ -761,28 +765,36 @@ class V4L2EventStream:
 
                 self.total_buffers += 1
 
-                recording_active = False
+                now = time.monotonic()
+                frame_due = now - last_frame_time > self.frame_interval
+                recording_enabled = False
+                recording_queued = False
                 with self.record_lock:
                     if self.record_writer:
-                        recording_active = self.record_writer.enqueue(payload)
-                        if recording_active:
+                        recording_enabled = True
+                        recording_queued = self.record_writer.enqueue(payload)
+                        if recording_queued:
                             self.record_bytes += len(payload)
 
                 events = 0
-                try:
-                    events = self._decode_and_draw(payload)
-                except Exception as exc:
-                    self.preview_errors += 1
-                    if self.preview_errors <= 3:
-                        self.on_status("Preview decode failed; recording continues: %s" % exc)
+                decode_preview = (not recording_enabled) or frame_due
+                if decode_preview:
+                    try:
+                        events = self._decode_and_draw(payload)
+                        self.preview_decoded_buffers += 1
+                    except Exception as exc:
+                        self.preview_errors += 1
+                        if self.preview_errors <= 3:
+                            self.on_status("Preview decode failed; recording continues: %s" % exc)
+                else:
+                    self.preview_skipped_buffers += 1
 
                 self.total_events += events
-                if recording_active:
+                if recording_queued:
                     with self.record_lock:
                         self.record_events += events
 
-                now = time.monotonic()
-                if now - last_frame_time > self.frame_interval:
+                if frame_due:
                     last_frame_time = now
                     self.on_frame(self.display.copy())
                     self.display[:] = (self.display.astype(np.float32) * self.decay).astype(np.uint8)
@@ -792,7 +804,15 @@ class V4L2EventStream:
                     last_rate_time = now
                     self.rate_mev_s = delta_events / 1_000_000.0
                     rec = " recording" if self.is_recording() else ""
-                    self.on_status("Live: %.2f Mev/s, buffers=%s%s" % (self.rate_mev_s, self.total_buffers, rec))
+                    preview_skip = (
+                        ", preview skip=%s" % self.preview_skipped_buffers
+                        if self.preview_skipped_buffers
+                        else ""
+                    )
+                    self.on_status(
+                        "Live: %.2f Mev/s, buffers=%s%s%s"
+                        % (self.rate_mev_s, self.total_buffers, rec, preview_skip)
+                    )
         except Exception as exc:
             self.on_status("Camera stream failed: %s" % exc)
         finally:

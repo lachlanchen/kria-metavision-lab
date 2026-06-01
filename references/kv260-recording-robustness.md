@@ -72,6 +72,18 @@ decode/draw preview
 emit preview frame when due
 ```
 
+Current hot-loop order after the recording-preview decimation patch:
+
+```text
+DQBUF
+copy payload bytes
+QBUF immediately
+enqueue copied bytes into bounded recording queue if recording
+if not recording: decode/draw every payload
+if recording: decode/draw only when a preview frame is due
+emit preview frame when due
+```
+
 ## Most Important Simple Improvement
 
 The best first improvement was not a complicated queue/thread redesign. It was just to return the V4L2 buffer to the driver as soon as the payload was copied.
@@ -338,6 +350,54 @@ GUI_SMOKE rc=0
 ```
 
 The default and small-queue camera tests both had zero recording drops at the observed event rates. The writer-only test intentionally used a tiny queue and a fast enqueue burst to prove the bounded drop accounting path works.
+
+## Stage 3 Recording Preview Decimation
+
+Stage 3 keeps preview smooth when not recording and reduces preview CPU cost while recording.
+
+Policy:
+
+- Not recording: decode every payload for the live preview.
+- Recording: enqueue every copied raw payload into the recorder, but only decode preview payloads when a display frame is due.
+- Recording remains prioritized over visualization.
+
+Verification after the patch:
+
+```text
+LIVE_RESULT frames=84 diffs=83 after_2s_frames=54 after_2s_diffs=54 events=673922 buffers=174 decoded_buffers=174 skipped_buffers=0 preview_errors=0
+```
+
+Recording test:
+
+```text
+REC_RESULT path=/home/petalinux/event_recordings/recording_decimated_preview_test_20260601_063547.pse2.raw
+file_size=13695824
+stats_bytes=13695824
+buffers_written=154
+queued_buffers=154
+drops=0
+pending=0
+error=None
+total_events=1823797
+total_buffers=169
+decoded_buffers=99
+skipped_buffers=70
+frames=94
+diffs=93
+preview_errors=0
+```
+
+Replay smoke test:
+
+```text
+REPLAY_RESULT decoded_events=127776 preview_events=127776 nonblank=True
+```
+
+GUI lifecycle smoke test:
+
+```text
+GUI_SMOKE rc=0
+```
 
 ## References
 
