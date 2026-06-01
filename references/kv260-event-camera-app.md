@@ -84,20 +84,40 @@ Size: 1280x720
 
 The app decodes the PSE2/EVT2.1 V4L2 byte stream directly and renders events in a GTK window. The preview expands the EVT2.1 32-bit `vx` vector inside each 64-bit event word, so one event-vector word can draw up to 32 neighboring x positions. This avoids the vertical stripe artifact caused by drawing only the vector base x coordinate.
 
+The current app also decodes EVT2.1 timestamps and renders with a Metavision-style accumulation window. The default display is 10 ms accumulation at 30 FPS, matching the native viewer pattern used by OpenEB/Metavision examples.
+
 ## Controls
 
-- `Open Camera`: opens `/dev/video0`.
-- `Close Camera`: stops streaming and releases `/dev/video0`.
+- `Open Live`: opens `/dev/video0`.
+- `Close`: stops streaming or playback and releases `/dev/video0`.
 - `Start Recording`: records the exact raw V4L2 PSE2 byte stream.
 - `Stop Recording`: closes the recording file cleanly.
+- `Open Recording`: opens a previously captured `.pse2.raw` / raw EVT2.1 payload recording for playback.
+- `Pause` / `Resume`: pauses or resumes recording playback.
 - `New Name`: generates a timestamped output filename.
 - `Recover Stack`: closes the stream, reloads the Prophesee camera stack, then leaves the app ready to reopen.
 - `Quit`: stops streaming and closes the app.
 - `Folder`: output folder for recordings.
 - `File`: output filename.
-- `Device`: V4L2 node, default `/dev/video0`.
-- `Persistence`: event trail decay.
-- `Point Radius`: event dot size. Increase this if the view looks too sparse.
+- `Video node`: V4L2 node, default `/dev/video0`.
+- `Accumulation ms`: event time window used for each frame.
+- `FPS`: preview refresh target.
+- `Palette`: dark, light, gray, or cool/warm event palette.
+- `Polarity`: show all events, only ON events, or only OFF events.
+- `Point radius`: event dot size. Increase this if the view looks too sparse.
+- `Event trail`: optional display persistence after the current accumulation window.
+- `Show OSD overlay`: shows source, rate, recording/playback state, and accumulation on the preview.
+
+The `Biases` tab reads daily-use controls from `/dev/v4l-subdev3`:
+
+- `bias_diff_on`
+- `bias_diff_off`
+- `bias_hpf`
+- `bias_fo`
+- `bias_refr`
+- `bias_diff`
+
+The tab can refresh live values, apply the edited values, reset defaults, and save/load JSON bias presets.
 
 The app auto-opens the camera when launched from the desktop.
 
@@ -122,6 +142,8 @@ event_YYYYMMDD_HHMMSS.pse2.raw.json
 ```
 
 The `.raw` file is the exact V4L2 PSE2/EVT2.1 byte stream. It is useful for board-side debugging and replay tooling that understands the KV260 PSE2 stream. It is not guaranteed to be the same container format as Metavision SDK `.raw` files, because the board image does not include the Metavision Python SDK modules or C++ development headers.
+
+The custom app can replay its own `.pse2.raw` files directly. Official Metavision RAW/DAT/HDF5 support should be added later through the installed C++ SDK runtime or a small OpenEB helper, because the Python Metavision modules are not present in this image.
 
 ## Install Or Refresh Launcher
 
@@ -169,6 +191,17 @@ Runtime log:
 ```
 
 ## Verification Done
+
+Updated smoke tests after the playback/bias/display-control upgrade:
+
+```text
+python3 -m py_compile scripts/kv260-event-camera-app.py
+module import: OK
+existing .pse2.raw replay decode: 59459 events from first 512 KiB, nonblank rendered frame
+bias probe: bias_diff_on/off, bias_hpf, bias_fo, bias_refr, bias_diff found on /dev/v4l-subdev3
+GUI smoke: starts on DISPLAY=:0 with auto-open disabled and exits through the local command socket
+live stream smoke: /dev/video0 opened, 71140 events, 31 buffers, 31 frames in about 3 seconds
+```
 
 Direct stream test:
 
@@ -218,4 +251,10 @@ The native viewer window close-button behavior is documented separately:
 
 ```text
 references/kv260-native-metavision-viewer-close-behavior.md
+```
+
+The OpenEB and bias research behind the current viewer design is documented in:
+
+```text
+references/kv260-openeb-custom-viewer-research.md
 ```

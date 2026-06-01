@@ -42,6 +42,9 @@ The center of this repo is a custom KV260 event camera application built for the
 | Live preview | Opens the V4L2 event stream and renders activity on the HDMI desktop |
 | Clean close | Releases the camera device so the next launch works normally |
 | Recording | Saves raw event bytes for later analysis |
+| Playback | Opens custom `.pse2.raw` recordings directly in the same GUI |
+| Display tuning | Adjusts accumulation time, FPS, palette, ON/OFF polarity, dot size, and event trail |
+| Bias tuning | Reads and applies common IMX636 V4L2 bias controls from the sensor subdevice |
 | Metadata | Writes a JSON sidecar with capture information |
 | Desktop launcher | Adds a simple menu item for the board desktop |
 | Recovery scripts | Clears stale viewer and camera state when the board gets stuck |
@@ -143,6 +146,7 @@ references/kv260-event-camera-app.md
 references/kv260-desktop-stall-recovery.md
 references/kv260-windows-shortcuts-x11.md
 references/kv260-native-metavision-viewer-close-behavior.md
+references/kv260-openeb-custom-viewer-research.md
 references/kv260-camera-viewer.md
 references/kv260-event-visual-gui-launch.md
 references/gui-petalinux.md
