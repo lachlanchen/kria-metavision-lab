@@ -3,13 +3,16 @@ set -eu
 
 SCRIPT_NAME="$(basename "$0")"
 BACKUP_DIR="${KV260_ROOTFS_GROW_BACKUP_DIR:-/home/petalinux/SystemMaintenance/backups}"
+STATE_FILE="${KV260_ROOTFS_GROW_STATE_FILE:-/home/petalinux/SystemMaintenance/expand-rootfs-sd.state}"
 DRY_RUN=0
 STATUS_ONLY=0
+FREE_PERCENT=100
+FREE_PERCENT_SET=0
 
 usage() {
   cat <<'EOF'
 Usage:
-  kv260-expand-rootfs-sd.sh [--status|--dry-run]
+  kv260-expand-rootfs-sd.sh [--status|--dry-run] [--free-percent N]
 
 Idempotently grow the mounted ext4 root filesystem to fill the SD card.
 
@@ -19,9 +22,17 @@ The script is safe to run:
   - after completion, where it becomes a no-op except for a harmless resize2fs check.
 
 Options:
-  --status   print current layout and planned action without changing anything
-  --dry-run  print commands that would be run without changing anything
-  --help     show this help
+  --free-percent N  use N percent of the baseline free space after root
+                    N must be 1..100. Default: 100
+  --status          print current layout and planned action without changing anything
+  --dry-run         print commands that would be run without changing anything
+  --help            show this help
+
+Examples:
+  kv260-expand-rootfs-sd.sh --free-percent 25
+  kv260-expand-rootfs-sd.sh --free-percent 50
+  kv260-expand-rootfs-sd.sh --free-percent 75
+  kv260-expand-rootfs-sd.sh --free-percent 100
 EOF
 }
 
@@ -104,6 +115,83 @@ device_size_sectors() {
   blockdev --getsz "$1"
 }
 
+state_get() {
+  key="$1"
+  [ -f "${STATE_FILE}" ] || return 0
+  awk -F= -v key="${key}" '$1 == key { print $2; exit }' "${STATE_FILE}" 2>/dev/null || true
+}
+
+write_state_file() {
+  baseline_size="$1"
+  baseline_free="$2"
+  mkdir -p "$(dirname "${STATE_FILE}")"
+  if [ "${DRY_RUN}" = "1" ]; then
+    log "DRY-RUN: write baseline state to ${STATE_FILE}"
+    return 0
+  fi
+  {
+    printf 'created=%s\n' "$(date -Iseconds)"
+    printf 'disk=%s\n' "${DISK}"
+    printf 'root_dev=%s\n' "${ROOT_DEV}"
+    printf 'part_num=%s\n' "${PART_NUM}"
+    printf 'part_start=%s\n' "${PART_START}"
+    printf 'baseline_size=%s\n' "${baseline_size}"
+    printf 'baseline_free=%s\n' "${baseline_free}"
+    printf 'target_percent=%s\n' "${FREE_PERCENT}"
+    printf 'disk_sectors=%s\n' "${DISK_SECTORS}"
+  } > "${STATE_FILE}"
+  chmod 600 "${STATE_FILE}" 2>/dev/null || true
+  log "Baseline state: ${STATE_FILE}"
+}
+
+load_or_create_baseline() {
+  saved_disk="$(state_get disk)"
+  saved_root_dev="$(state_get root_dev)"
+  saved_part_start="$(state_get part_start)"
+  saved_baseline_size="$(state_get baseline_size)"
+  saved_baseline_free="$(state_get baseline_free)"
+  saved_target_percent="$(state_get target_percent)"
+
+  if [ -n "${saved_disk}" ] || [ -n "${saved_root_dev}" ] || [ -n "${saved_part_start}" ] || [ -n "${saved_baseline_size}" ]; then
+    if [ "${saved_disk}" = "${DISK}" ] \
+      && [ "${saved_root_dev}" = "${ROOT_DEV}" ] \
+      && [ "${saved_part_start}" = "${PART_START}" ] \
+      && [ -n "${saved_baseline_size}" ] \
+      && [ -n "${saved_baseline_free}" ]; then
+      BASELINE_SIZE="${saved_baseline_size}"
+      BASELINE_FREE="${saved_baseline_free}"
+      BASELINE_SOURCE="${STATE_FILE}"
+      if [ "${FREE_PERCENT_SET}" = "0" ] && [ -n "${saved_target_percent}" ]; then
+        case "${saved_target_percent}" in
+          ''|*[!0-9]*) ;;
+          *)
+            if [ "${saved_target_percent}" -ge 1 ] && [ "${saved_target_percent}" -le 100 ]; then
+              FREE_PERCENT="${saved_target_percent}"
+            fi
+            ;;
+        esac
+      fi
+      if [ "${FREE_PERCENT_SET}" = "1" ] \
+        && [ "${STATUS_ONLY}" = "0" ] \
+        && [ "${DRY_RUN}" = "0" ] \
+        && [ "${saved_target_percent}" != "${FREE_PERCENT}" ]; then
+        write_state_file "${BASELINE_SIZE}" "${BASELINE_FREE}"
+      fi
+      return 0
+    fi
+    die "baseline state ${STATE_FILE} does not match current root device; move it aside before continuing"
+  fi
+
+  BASELINE_SIZE="${PART_SIZE}"
+  BASELINE_FREE=$((DISK_SECTORS - PART_START - PART_SIZE))
+  BASELINE_SOURCE="current partition table"
+  if [ "${STATUS_ONLY}" = "1" ]; then
+    BASELINE_SOURCE="current partition table (status only; state not written)"
+    return 0
+  fi
+  write_state_file "${BASELINE_SIZE}" "${BASELINE_FREE}"
+}
+
 backup_partition_table() {
   disk="$1"
   stamp="$(date +%Y%m%d-%H%M%S)"
@@ -141,6 +229,10 @@ print_status() {
   log "Partition start:   ${PART_START}"
   log "Table size:        ${PART_SIZE}"
   log "Table end:         ${PART_END}"
+  log "Baseline source:   ${BASELINE_SOURCE}"
+  log "Baseline size:     ${BASELINE_SIZE}"
+  log "Baseline free:     ${BASELINE_FREE}"
+  log "Free percent:      ${FREE_PERCENT}%"
   log "Target end:        ${TARGET_END}"
   log "Target size:       ${TARGET_SIZE}"
   log "Kernel part size:  ${KERNEL_PART_SIZE}"
@@ -157,6 +249,17 @@ while [ "$#" -gt 0 ]; do
       STATUS_ONLY=1
       shift
       ;;
+    --free-percent)
+      [ "$#" -ge 2 ] || die "--free-percent requires a value"
+      FREE_PERCENT="$2"
+      FREE_PERCENT_SET=1
+      shift 2
+      ;;
+    --free-percent=*)
+      FREE_PERCENT="${1#--free-percent=}"
+      FREE_PERCENT_SET=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -167,6 +270,12 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+case "${FREE_PERCENT}" in
+  ''|*[!0-9]*) die "--free-percent must be an integer from 1 to 100" ;;
+esac
+[ "${FREE_PERCENT}" -ge 1 ] || die "--free-percent must be at least 1"
+[ "${FREE_PERCENT}" -le 100 ] || die "--free-percent must be at most 100"
+
 for cmd in findmnt readlink lsblk blockdev sfdisk parted partprobe partx resize2fs awk sed date df; do
   need_cmd "${cmd}"
 done
@@ -176,6 +285,7 @@ if [ "$(id -u)" -ne 0 ]; then
   set --
   [ "${DRY_RUN}" = "1" ] && set -- "$@" --dry-run
   [ "${STATUS_ONLY}" = "1" ] && set -- "$@" --status
+  [ "${FREE_PERCENT_SET}" = "1" ] && set -- "$@" --free-percent "${FREE_PERCENT}"
   exec sudo "$0" "$@"
 fi
 
@@ -208,11 +318,15 @@ PART_TYPE="$(printf '%s\n' "${PART_LINE}" | extract_field type)"
 [ -n "${PART_TYPE}" ] || PART_TYPE=83
 
 DISK_SECTORS="$(device_size_sectors "${DISK}")"
-TARGET_END=$((DISK_SECTORS - 1))
-TARGET_SIZE=$((DISK_SECTORS - PART_START))
 PART_END=$((PART_START + PART_SIZE - 1))
 MAX_END="$(max_partition_end "${DISK}")"
 KERNEL_PART_SIZE="$(device_size_sectors "${ROOT_DEV}")"
+
+load_or_create_baseline
+TARGET_SIZE=$((BASELINE_SIZE + (BASELINE_FREE * FREE_PERCENT / 100)))
+MAX_TARGET_SIZE=$((DISK_SECTORS - PART_START))
+[ "${TARGET_SIZE}" -le "${MAX_TARGET_SIZE}" ] || TARGET_SIZE="${MAX_TARGET_SIZE}"
+TARGET_END=$((PART_START + TARGET_SIZE - 1))
 
 print_status
 
@@ -221,14 +335,14 @@ if [ "${PART_END}" -lt "${MAX_END}" ]; then
 fi
 
 if [ "${TARGET_SIZE}" -le "${PART_SIZE}" ]; then
-  log "Partition table already uses the available disk space."
+  log "Partition table is already at or beyond the ${FREE_PERCENT}% target."
 else
   if [ "${STATUS_ONLY}" = "1" ]; then
     log "Planned action: grow partition ${PART_NUM} from ${PART_SIZE} to ${TARGET_SIZE} sectors."
     exit 0
   fi
 
-  log "Growing partition ${ROOT_DEV} to the end of ${DISK}."
+  log "Growing partition ${ROOT_DEV} to ${FREE_PERCENT}% of the baseline free-space target."
   backup_partition_table "${DISK}"
 
   if ! run_cmd parted -s "${DISK}" unit s resizepart "${PART_NUM}" "${TARGET_END}s"; then

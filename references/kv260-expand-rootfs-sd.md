@@ -50,11 +50,36 @@ Grow:
 sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh
 ```
 
+Grow only part of the baseline free space:
+
+```sh
+sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --free-percent 25
+sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --free-percent 50
+sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --free-percent 75
+sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --free-percent 100
+```
+
+`--free-percent` means "use this percent of the free space that existed when the script first captured its baseline." This is intentionally not "use this percent of whatever free space remains today", because that would grow a little more every time and would not be idempotent.
+
+The default is `--free-percent 100`.
+
 If the partition table grows but the kernel still sees the old size, reboot and run the same command again:
 
 ```sh
 sudo reboot
 sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh
+```
+
+If you started with a partial target, the script saves that target in:
+
+```text
+/home/petalinux/SystemMaintenance/expand-rootfs-sd.state
+```
+
+So after reboot, running the script again without arguments continues the saved target. To intentionally grow further later, pass a larger target explicitly:
+
+```sh
+sudo /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh --free-percent 75
 ```
 
 ## Idempotency
@@ -64,6 +89,7 @@ The script is safe to run repeatedly:
 - before reboot: grows the partition table if there is free space after root;
 - after reboot: runs `resize2fs` if the kernel now sees the larger partition;
 - after completion: detects that the partition is already full size and `resize2fs` becomes a harmless no-op.
+- with partial growth: uses the saved baseline and target percentage so repeated runs do not keep consuming more space.
 
 ## Safety Checks
 
@@ -73,6 +99,7 @@ The script:
 - requires root filesystem type `ext4`;
 - refuses to grow if the root partition is not the last partition on the disk;
 - backs up the partition table before changing it;
+- saves a baseline state file for idempotent partial expansion;
 - uses `partprobe` / `partx` after partition changes;
 - prints final `df -hT /` status.
 
