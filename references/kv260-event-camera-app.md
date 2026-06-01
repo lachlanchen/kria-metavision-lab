@@ -213,3 +213,9 @@ scripts/kv260-metavision-control-panel.sh
 ```
 
 The native menu launcher path now has a lock to ignore duplicate clicks while a launch is already in progress. The stop path now waits for the native process to exit and escalates to `kill -9` only if the viewer refuses to close.
+
+The native viewer window close-button behavior is documented separately:
+
+```text
+references/kv260-native-metavision-viewer-close-behavior.md
+```

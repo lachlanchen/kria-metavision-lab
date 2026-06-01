@@ -120,6 +120,7 @@ Useful references:
 references/kv260-prophesee-resources.md
 references/kv260-event-camera-app.md
 references/kv260-desktop-stall-recovery.md
+references/kv260-native-metavision-viewer-close-behavior.md
 references/kv260-camera-viewer.md
 references/kv260-event-visual-gui-launch.md
 references/gui-petalinux.md
