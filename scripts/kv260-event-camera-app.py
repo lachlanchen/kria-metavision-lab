@@ -540,12 +540,19 @@ class RawRecordingWriter:
             return False
 
     def stop(self):
+        started = time.monotonic()
         if self.thread and self.thread.is_alive():
-            self.queue.put(None)
+            while self.thread.is_alive():
+                try:
+                    self.queue.put(None, timeout=0.2)
+                    break
+                except queue.Full:
+                    continue
             self.thread.join()
         elif self.file:
             self._close_file()
         stats = self.snapshot()
+        stats["stop_elapsed_s"] = round(time.monotonic() - started, 3)
         self.metadata.update({"recording_status": "stopped", "recording_stats": stats})
         self._write_metadata()
         return stats
@@ -719,8 +726,14 @@ class V4L2EventStream:
     def _finish_recording(self, writer):
         stats = writer.stop()
         self.on_status(
-            "Recording stopped: %s bytes, %s buffers, drops=%s -> %s"
-            % (stats["bytes_written"], stats["buffers_written"], stats["dropped_buffers"], writer.path)
+            "Recording stopped: %s bytes, %s buffers, drops=%s, drain=%.3fs -> %s"
+            % (
+                stats["bytes_written"],
+                stats["buffers_written"],
+                stats["dropped_buffers"],
+                stats.get("stop_elapsed_s", 0.0),
+                writer.path,
+            )
         )
 
     def _open_device(self):

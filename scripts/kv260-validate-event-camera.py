@@ -111,6 +111,7 @@ def run_writer_sanity(app, output_dir):
     return {
         "name": "writer_sanity",
         "accepted": accepted,
+        "expected_drops": max(0, len(payloads) - accepted),
         "file_size": file_size,
         "stats": stats,
         "metadata_status": metadata.get("recording_status"),
@@ -119,7 +120,9 @@ def run_writer_sanity(app, output_dir):
             accepted > 0
             and file_size == stats["bytes_written"]
             and stats["buffers_written"] == accepted
+            and stats["dropped_buffers"] == max(0, len(payloads) - accepted)
             and stats["pending_buffers"] == 0
+            and stats.get("stop_elapsed_s", 0) >= 0
             and not stats["write_error"]
             and metadata.get("recording_status") == "stopped"
         ),
@@ -189,7 +192,9 @@ def run_recording(app, device, record_dir, duration, priority):
     record_started = time.monotonic()
     time.sleep(duration)
     snapshot = stream.recording_snapshot() or {}
+    stop_started = time.monotonic()
     stream.stop_recording()
+    stop_elapsed = time.monotonic() - stop_started
     elapsed_recording = time.monotonic() - record_started
     time.sleep(0.3)
     stream.stop()
@@ -214,6 +219,7 @@ def run_recording(app, device, record_dir, duration, priority):
         "skipped_buffers": int(stream.preview_skipped_buffers),
         "preview_errors": int(stream.preview_errors),
         "replay": replay,
+        "stop_recording_elapsed_s": round(stop_elapsed, 3),
         "statuses_tail": statuses[-8:],
     }
     common_pass = bool(
@@ -222,6 +228,7 @@ def run_recording(app, device, record_dir, duration, priority):
         and stats.get("buffers_written", 0) > 0
         and stats.get("pending_buffers") == 0
         and stats.get("dropped_buffers") == 0
+        and stats.get("stop_elapsed_s", 0) >= 0
         and not stats.get("write_error")
         and metadata.get("recording_status") == "stopped"
         and result["preview_errors"] == 0
@@ -234,6 +241,92 @@ def run_recording(app, device, record_dir, duration, priority):
         preview_pass = result["skipped_buffers"] == 0 and result["decoded_buffers"] == result["buffers"]
     result["pass"] = bool(common_pass and preview_pass)
     return result
+
+
+def run_playback_player(app, path, sample_s=4.0):
+    frame_stats = FrameStats(after_seconds=0.5)
+    statuses = []
+    renderer = app.EventFrameRenderer()
+    player = app.PSE2RecordingPlayer(str(path), renderer, frame_stats.on_frame, statuses.append)
+    started = time.monotonic()
+    player.start()
+    deadline = started + sample_s
+    observed_playback = False
+    while time.monotonic() < deadline:
+        observed_playback = frame_stats.nonblank > 0 and player.total_events > 0
+        if observed_playback and frame_stats.frames >= 5:
+            break
+        time.sleep(0.1)
+    stop_started = time.monotonic()
+    player.stop()
+    stop_elapsed = time.monotonic() - stop_started
+    elapsed = time.monotonic() - started
+    result = {
+        "name": "playback_player",
+        "path": str(path),
+        "duration_s": round(elapsed, 3),
+        "sample_s": sample_s,
+        "observed_playback": observed_playback,
+        "stop_elapsed_s": round(stop_elapsed, 3),
+        "events": int(player.total_events),
+        "rate_mev_s": float(player.rate_mev_s),
+        "frames": frame_stats.as_dict(),
+        "statuses_tail": statuses[-8:],
+    }
+    result["pass"] = bool(
+        observed_playback
+        and result["events"] > 0
+        and result["frames"]["frames"] >= 5
+        and result["frames"]["nonblank"] > 0
+        and result["stop_elapsed_s"] < 4.0
+    )
+    return result
+
+
+def run_bias_probe(app):
+    expected = {"bias_diff_on", "bias_diff_off", "bias_hpf", "bias_fo", "bias_refr", "bias_diff"}
+    controller = app.BiasController()
+    try:
+        controls = controller.read_controls()
+        found = sorted(controls)
+        missing = sorted(expected - set(controls))
+        error = None
+    except Exception as exc:
+        found = []
+        missing = sorted(expected)
+        error = str(exc)
+    return {
+        "name": "bias_probe",
+        "device": controller.device,
+        "found": found,
+        "missing": missing,
+        "error": error,
+        "pass": bool(not error and not missing),
+    }
+
+
+def run_launcher_probe():
+    entries = [
+        pathlib.Path("/usr/share/applications/kv260-event-camera.desktop"),
+        pathlib.Path("/usr/share/applications/kv260-metavision-viewer.desktop"),
+    ]
+    scripts = [
+        HERE / "kv260-event-camera-app.sh",
+        HERE / "kv260-metavision-viewer-toggle.sh",
+        HERE / "kv260-event-camera-switch.sh",
+    ]
+    missing_entries = [str(path) for path in entries if not path.exists()]
+    missing_scripts = [str(path) for path in scripts if not path.exists()]
+    non_exec_scripts = [str(path) for path in scripts if path.exists() and not os.access(path, os.X_OK)]
+    return {
+        "name": "launcher_probe",
+        "entries": [str(path) for path in entries],
+        "scripts": [str(path) for path in scripts],
+        "missing_entries": missing_entries,
+        "missing_scripts": missing_scripts,
+        "non_exec_scripts": non_exec_scripts,
+        "pass": bool(not missing_entries and not missing_scripts and not non_exec_scripts),
+    }
 
 
 def run_gui_smoke(output_dir):
@@ -329,7 +422,7 @@ def write_reports(output_dir, results):
         elif item["name"].startswith("recording_"):
             stats = item["metadata_stats"]
             lines.append(
-                "- file_size=%s bytes_written=%s buffers=%s queue_pending=%s drops=%s write_error=%s"
+                "- file_size=%s bytes_written=%s buffers=%s queue_pending=%s drops=%s write_error=%s stop_elapsed=%s"
                 % (
                     item["file_size"],
                     stats.get("bytes_written"),
@@ -337,6 +430,7 @@ def write_reports(output_dir, results):
                     stats.get("pending_buffers"),
                     stats.get("dropped_buffers"),
                     stats.get("write_error"),
+                    stats.get("stop_elapsed_s"),
                 )
             )
             lines.append(
@@ -352,13 +446,40 @@ def write_reports(output_dir, results):
             lines.append("- path=`%s`" % item["path"])
         elif item["name"] == "writer_sanity":
             lines.append(
-                "- accepted=%s file_size=%s bytes_written=%s pending=%s drops=%s"
+                "- accepted=%s file_size=%s bytes_written=%s pending=%s drops=%s stop_elapsed=%s"
                 % (
                     item["accepted"],
                     item["file_size"],
                     item["stats"].get("bytes_written"),
                     item["stats"].get("pending_buffers"),
                     item["stats"].get("dropped_buffers"),
+                    item["stats"].get("stop_elapsed_s"),
+                )
+            )
+        elif item["name"] == "playback_player":
+            lines.append(
+                "- events=%s frames=%s nonblank=%s observed=%s stop_elapsed=%s path=`%s`"
+                % (
+                    item["events"],
+                    item["frames"]["frames"],
+                    item["frames"]["nonblank"],
+                    item["observed_playback"],
+                    item["stop_elapsed_s"],
+                    item["path"],
+                )
+            )
+        elif item["name"] == "bias_probe":
+            lines.append(
+                "- device=%s found=%s missing=%s error=%s"
+                % (item["device"], len(item["found"]), item["missing"], item["error"])
+            )
+        elif item["name"] == "launcher_probe":
+            lines.append(
+                "- entries_ok=%s scripts_ok=%s executable_ok=%s"
+                % (
+                    not item["missing_entries"],
+                    not item["missing_scripts"],
+                    not item["non_exec_scripts"],
                 )
             )
         elif item["name"] == "gui_smoke":
@@ -392,8 +513,12 @@ def main():
     stopped = [] if args.no_stop_existing else stop_existing_processes()
 
     checks.append(run_writer_sanity(app, output_dir))
+    checks.append(run_launcher_probe())
+    checks.append(run_bias_probe(app))
     checks.append(run_live_preview(app, args.device, args.live_seconds))
-    checks.append(run_recording(app, args.device, record_dir, args.record_seconds, True))
+    priority_on = run_recording(app, args.device, record_dir, args.record_seconds, True)
+    checks.append(priority_on)
+    checks.append(run_playback_player(app, priority_on["path"]))
     checks.append(run_recording(app, args.device, record_dir, args.record_seconds, False))
     if not args.skip_gui_smoke:
         checks.append(run_gui_smoke(output_dir))
