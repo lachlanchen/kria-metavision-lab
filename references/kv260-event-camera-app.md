@@ -206,6 +206,8 @@ live continuity check: after the first 2 seconds, 71 of 71 emitted frames change
 playback smoke: /home/petalinux/event_recordings/event_20260531_183748.pse2.raw decoded 59459 events from first 512 KiB and rendered nonblank
 recording hot-loop robustness: payload is now copied, V4L2 buffer is requeued immediately, recording write happens before preview decode
 recording smoke: 3350960 byte .pse2.raw file, recorded_bytes=3350960, replay decoded 65345 events from first 512 KiB, preview_errors=0
+bounded writer robustness: default queue recording wrote 3990184 bytes across 326 buffers with drops=0, pending=0, write_error=None
+small queue robustness: KV260_RECORD_QUEUE_BUFFERS=8 wrote 2379888 bytes across 231 buffers with drops=0
 ```
 
 Direct stream test:

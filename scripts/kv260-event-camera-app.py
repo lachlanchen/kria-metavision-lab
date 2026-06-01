@@ -11,6 +11,7 @@ import fcntl
 import json
 import mmap
 import os
+import queue
 import re
 import select
 import socket
@@ -47,6 +48,7 @@ VIEW_H = 540
 DEFAULT_RECORD_DIR = os.path.expanduser(os.environ.get("KV260_EVENT_RECORD_DIR", "~/event_recordings"))
 APP_LOCK_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_LOCK_PATH", "/tmp/kv260-event-camera-app.lock")
 APP_SOCKET_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_SOCKET", "/tmp/kv260-event-camera-app.sock")
+DEFAULT_RECORD_QUEUE_BUFFERS = int(os.environ.get("KV260_RECORD_QUEUE_BUFFERS", "256"))
 
 
 _IOC_NRBITS = 8
@@ -491,6 +493,109 @@ class EventFrameRenderer:
             return frame
 
 
+class RawRecordingWriter:
+    def __init__(self, path, metadata, on_status, queue_size=DEFAULT_RECORD_QUEUE_BUFFERS):
+        self.path = path
+        self.meta_path = path + ".json"
+        self.metadata = dict(metadata)
+        self.on_status = on_status
+        self.queue_size = max(8, int(queue_size))
+        self.queue = queue.Queue(maxsize=self.queue_size)
+        self.file = None
+        self.thread = None
+        self.stats_lock = threading.Lock()
+        self.queued_buffers = 0
+        self.queued_bytes = 0
+        self.buffers_written = 0
+        self.bytes_written = 0
+        self.dropped_buffers = 0
+        self.dropped_bytes = 0
+        self.write_error = None
+
+    def start(self):
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.metadata.update(
+            {
+                "recording_backend": "bounded-python-raw-writer",
+                "record_queue_buffers": self.queue_size,
+                "recording_status": "recording",
+            }
+        )
+        self._write_metadata()
+        self.file = open(self.path, "wb", buffering=1024 * 1024)
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def enqueue(self, payload):
+        try:
+            self.queue.put_nowait(payload)
+            with self.stats_lock:
+                self.queued_buffers += 1
+                self.queued_bytes += len(payload)
+            return True
+        except queue.Full:
+            with self.stats_lock:
+                self.dropped_buffers += 1
+                self.dropped_bytes += len(payload)
+            return False
+
+    def stop(self):
+        if self.thread and self.thread.is_alive():
+            self.queue.put(None)
+            self.thread.join()
+        elif self.file:
+            self._close_file()
+        stats = self.snapshot()
+        self.metadata.update({"recording_status": "stopped", "recording_stats": stats})
+        self._write_metadata()
+        return stats
+
+    def snapshot(self):
+        with self.stats_lock:
+            pending = self.queue.qsize()
+            return {
+                "queued_buffers": self.queued_buffers,
+                "queued_bytes": self.queued_bytes,
+                "buffers_written": self.buffers_written,
+                "bytes_written": self.bytes_written,
+                "dropped_buffers": self.dropped_buffers,
+                "dropped_bytes": self.dropped_bytes,
+                "pending_buffers": pending,
+                "write_error": self.write_error,
+            }
+
+    def _run(self):
+        try:
+            while True:
+                payload = self.queue.get()
+                try:
+                    if payload is None:
+                        return
+                    self.file.write(payload)
+                    with self.stats_lock:
+                        self.buffers_written += 1
+                        self.bytes_written += len(payload)
+                finally:
+                    self.queue.task_done()
+        except Exception as exc:
+            with self.stats_lock:
+                self.write_error = str(exc)
+            self.on_status("Recording writer failed: %s" % exc)
+        finally:
+            self._close_file()
+
+    def _close_file(self):
+        if self.file:
+            self.file.flush()
+            self.file.close()
+            self.file = None
+
+    def _write_metadata(self):
+        with open(self.meta_path, "w", encoding="utf-8") as meta_file:
+            json.dump(self.metadata, meta_file, indent=2)
+            meta_file.write("\n")
+
+
 class V4L2EventStream:
     def __init__(self, device, renderer, on_frame, on_status):
         self.device = device
@@ -509,7 +614,7 @@ class V4L2EventStream:
         self.on_color = (60, 210, 130)
         self.off_color = (230, 80, 60)
         self.record_lock = threading.Lock()
-        self.record_file = None
+        self.record_writer = None
         self.record_path = None
         self.record_bytes = 0
         self.record_events = 0
@@ -548,11 +653,9 @@ class V4L2EventStream:
 
     def is_recording(self):
         with self.record_lock:
-            return self.record_file is not None
+            return self.record_writer is not None
 
     def start_recording(self, path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        meta_path = path + ".json"
         metadata = {
             "created": datetime.now().isoformat(timespec="seconds"),
             "format": "PSEE_EVT21",
@@ -563,31 +666,32 @@ class V4L2EventStream:
             "renderer": self.renderer.snapshot_settings(),
             "note": "Raw V4L2 PSE2/EVT2.1 byte stream captured directly from the KV260 event node.",
         }
+        writer = RawRecordingWriter(path, metadata, self.on_status)
+        writer.start()
         with self.record_lock:
-            self.stop_recording_locked()
-            self.record_file = open(path, "wb", buffering=1024 * 1024)
-            with open(meta_path, "w", encoding="utf-8") as meta_file:
-                json.dump(metadata, meta_file, indent=2)
-                meta_file.write("\n")
+            old_writer = self.record_writer
+            self.record_writer = writer
             self.record_path = path
             self.record_bytes = 0
             self.record_events = 0
+        if old_writer:
+            self._finish_recording(old_writer)
         self.on_status("Recording raw PSE2 stream to %s" % path)
 
     def stop_recording(self):
         with self.record_lock:
-            self.stop_recording_locked()
-
-    def stop_recording_locked(self):
-        if self.record_file:
-            path = self.record_path
-            bytes_written = self.record_bytes
-            events_written = self.record_events
-            self.record_file.flush()
-            self.record_file.close()
-            self.record_file = None
+            writer = self.record_writer
+            self.record_writer = None
             self.record_path = None
-            self.on_status("Recording stopped: %s bytes, %s events -> %s" % (bytes_written, events_written, path))
+        if writer:
+            self._finish_recording(writer)
+
+    def _finish_recording(self, writer):
+        stats = writer.stop()
+        self.on_status(
+            "Recording stopped: %s bytes, %s buffers, drops=%s -> %s"
+            % (stats["bytes_written"], stats["buffers_written"], stats["dropped_buffers"], writer.path)
+        )
 
     def _open_device(self):
         self.fd = os.open(self.device, os.O_RDWR | os.O_NONBLOCK)
@@ -659,10 +763,10 @@ class V4L2EventStream:
 
                 recording_active = False
                 with self.record_lock:
-                    if self.record_file:
-                        self.record_file.write(payload)
-                        self.record_bytes += len(payload)
-                        recording_active = True
+                    if self.record_writer:
+                        recording_active = self.record_writer.enqueue(payload)
+                        if recording_active:
+                            self.record_bytes += len(payload)
 
                 events = 0
                 try:
@@ -675,8 +779,7 @@ class V4L2EventStream:
                 self.total_events += events
                 if recording_active:
                     with self.record_lock:
-                        if self.record_file:
-                            self.record_events += events
+                        self.record_events += events
 
                 now = time.monotonic()
                 if now - last_frame_time > self.frame_interval:
@@ -688,7 +791,7 @@ class V4L2EventStream:
                     last_rate_events = self.total_events
                     last_rate_time = now
                     self.rate_mev_s = delta_events / 1_000_000.0
-                    rec = " recording" if self.record_file else ""
+                    rec = " recording" if self.is_recording() else ""
                     self.on_status("Live: %.2f Mev/s, buffers=%s%s" % (self.rate_mev_s, self.total_buffers, rec))
         except Exception as exc:
             self.on_status("Camera stream failed: %s" % exc)

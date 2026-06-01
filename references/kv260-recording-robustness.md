@@ -50,13 +50,24 @@ scripts/kv260-event-camera-app.py
 V4L2EventStream._run
 ```
 
-Current hot-loop order after the patch:
+Current hot-loop order after the first robustness patch:
 
 ```text
 DQBUF
 copy payload bytes
 QBUF immediately
 write recording bytes
+decode/draw preview
+emit preview frame when due
+```
+
+Current hot-loop order after the bounded-writer patch:
+
+```text
+DQBUF
+copy payload bytes
+QBUF immediately
+enqueue copied bytes into bounded recording queue if recording
 decode/draw preview
 emit preview frame when due
 ```
@@ -224,6 +235,109 @@ After this small change:
 - The code stays understandable.
 
 This remains the right stopping point before considering any larger queue/thread design. If future tests show recording still suffers under high event rate, then the next step should be measured rather than assumed.
+
+## Stage 2 Bounded Writer
+
+Stage 2 adds a bounded asynchronous raw writer. This is still a simple recording-first design, not an error-correction system.
+
+Implemented hot path:
+
+```text
+DQBUF
+copy payload bytes
+QBUF immediately
+enqueue copied bytes into bounded recording queue if recording
+decode/draw preview after recording enqueue
+```
+
+Writer path:
+
+```text
+writer thread drains recording queue
+writer thread writes raw payload bytes to disk
+stop recording waits for queued payloads to flush
+JSON sidecar stores final byte/buffer/drop counters
+```
+
+This gives the recorder a small RAM cushion for short disk stalls. If sustained event bandwidth exceeds storage bandwidth, no userspace design can guarantee saving everything forever. In that case the bounded queue may overflow and the app counts dropped recording payloads rather than trying complex recovery.
+
+Important philosophy:
+
+- Recording is more important than preview.
+- Preview may lag or be reduced during recording.
+- Preview should be smooth when not recording.
+- Use buffers to absorb short bursts.
+- Do not add infinite recovery, retry loops, or complicated error correction.
+- C++ is acceptable later if Python becomes the measured bottleneck, but the first implementation should keep the GUI workflow intact.
+
+The current default queue size is:
+
+```text
+KV260_RECORD_QUEUE_BUFFERS=256
+```
+
+The C++ path, if needed later, should be a small V4L2 raw recorder helper that owns capture and writing. It should not be a full GUI rewrite.
+
+## Stage 2 Verification
+
+Writer-only queue/drop path:
+
+```text
+WRITER_RESULT accepted=8 size=836 expected=836 stats_bytes=836 buffers=8 drops=7 pending=0 error=None status=stopped
+```
+
+Live preview after bounded writer:
+
+```text
+LIVE_RESULT frames=98 diffs=97 after_2s_frames=66 after_2s_diffs=66 events=403704 buffers=191 preview_errors=0
+```
+
+Default queue recording test:
+
+```text
+REC_RESULT path=/home/petalinux/event_recordings/recording_queue_test_20260601_062454.pse2.raw
+file_size=3990184
+stats_bytes=3990184
+buffers_written=326
+queued_buffers=326
+drops=0
+pending=0
+error=None
+record_events=512502
+total_events=655847
+total_buffers=345
+frames=176
+diffs=175
+preview_errors=0
+```
+
+Replay smoke test on the default queue recording:
+
+```text
+REPLAY_RESULT decoded_events=131745 preview_events=131745 nonblank=True
+```
+
+Small queue recording test with `KV260_RECORD_QUEUE_BUFFERS=8`:
+
+```text
+QUEUE8_RESULT path=/home/petalinux/event_recordings/recording_queue8_test_20260601_062519.pse2.raw
+file_size=2379888
+stats_bytes=2379888
+buffers_written=231
+queued=231
+drops=0
+pending=0
+error=None
+preview_errors=0
+```
+
+GUI lifecycle smoke test:
+
+```text
+GUI_SMOKE rc=0
+```
+
+The default and small-queue camera tests both had zero recording drops at the observed event rates. The writer-only test intentionally used a tiny queue and a fast enqueue burst to prove the bounded drop accounting path works.
 
 ## References
 
