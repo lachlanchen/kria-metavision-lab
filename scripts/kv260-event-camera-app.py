@@ -339,6 +339,7 @@ class EventFrameRenderer:
         self.trail = 0.0
         self.show_osd = True
         self.last_frame = None
+        self.last_batch_wall_time = 0.0
         self.osd_font = None
         if ImageFont is not None:
             try:
@@ -352,6 +353,7 @@ class EventFrameRenderer:
             self.last_event_ts = 0
             self.total_events = 0
             self.last_frame = None
+            self.last_batch_wall_time = 0.0
 
     def snapshot_settings(self):
         with self.lock:
@@ -389,6 +391,7 @@ class EventFrameRenderer:
             self.batches.append(batch)
             self.total_events += batch.count
             self.last_event_ts = max(self.last_event_ts, batch.t_max)
+            self.last_batch_wall_time = time.monotonic()
             cutoff = self.last_event_ts - max(self.accumulation_us, 250000)
             if cutoff > 0:
                 self.batches = [item for item in self.batches if item.t_max >= cutoff]
@@ -408,7 +411,11 @@ class EventFrameRenderer:
             }
             palette = PALETTES.get(settings["palette"], PALETTES["Dark"])
             bg = np.array(palette["bg"], dtype=np.uint8)
-            cutoff = self.last_event_ts - settings["accumulation_us"]
+            display_ts = self.last_event_ts
+            if display_ts and not paused and self.last_batch_wall_time:
+                idle_us = int(max(0.0, time.monotonic() - self.last_batch_wall_time) * 1_000_000)
+                display_ts += min(idle_us, max(settings["accumulation_us"] * 4, 250000))
+            cutoff = display_ts - settings["accumulation_us"]
             batches = [batch for batch in self.batches if batch.t_max >= cutoff]
             if self.last_frame is not None and settings["trail"] > 0:
                 frame = (
@@ -611,7 +618,7 @@ class V4L2EventStream:
             while not self.stop_event.is_set():
                 ready, _, _ = select.select([self.fd], [], [], 0.2)
                 if not ready:
-                    self._maybe_emit_frame("Live", last_frame_time)
+                    last_frame_time = self._maybe_emit_frame("Live", last_frame_time)
                     continue
 
                 buf = V4L2Buffer()
@@ -664,6 +671,8 @@ class V4L2EventStream:
         settings = self.renderer.snapshot_settings()
         if now - last_frame_time >= 1.0 / max(1, settings["fps"]):
             self.on_frame(self.renderer.render_frame(label, self.rate_mev_s, self.is_recording(), False))
+            return now
+        return last_frame_time
 
 
 class PSE2RecordingPlayer:

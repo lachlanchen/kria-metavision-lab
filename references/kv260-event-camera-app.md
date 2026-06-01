@@ -201,6 +201,7 @@ existing .pse2.raw replay decode: 59459 events from first 512 KiB, nonblank rend
 bias probe: bias_diff_on/off, bias_hpf, bias_fo, bias_refr, bias_diff found on /dev/v4l-subdev3
 GUI smoke: starts on DISPLAY=:0 with auto-open disabled and exits through the local command socket
 live stream smoke: /dev/video0 opened, 71140 events, 31 buffers, 31 frames in about 3 seconds
+idle preview regression: after 50 ms with a 10 ms accumulation window, stale events clear instead of freezing
 ```
 
 Direct stream test:
