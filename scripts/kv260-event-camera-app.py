@@ -516,6 +516,7 @@ class V4L2EventStream:
         self.total_events = 0
         self.total_buffers = 0
         self.rate_mev_s = 0.0
+        self.preview_errors = 0
 
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
@@ -534,6 +535,7 @@ class V4L2EventStream:
         self.total_events = 0
         self.total_buffers = 0
         self.rate_mev_s = 0.0
+        self.preview_errors = 0
         self.display[:] = 0
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
@@ -648,16 +650,33 @@ class V4L2EventStream:
                 except BlockingIOError:
                     continue
 
-                payload = self.buffers[buf.index][: buf.bytesused]
-                events = self._decode_and_draw(payload)
-                self.total_events += events
+                try:
+                    payload = bytes(self.buffers[buf.index][: buf.bytesused])
+                finally:
+                    fcntl.ioctl(self.fd, VIDIOC_QBUF, buf)
+
                 self.total_buffers += 1
 
+                recording_active = False
                 with self.record_lock:
                     if self.record_file:
                         self.record_file.write(payload)
                         self.record_bytes += len(payload)
-                        self.record_events += events
+                        recording_active = True
+
+                events = 0
+                try:
+                    events = self._decode_and_draw(payload)
+                except Exception as exc:
+                    self.preview_errors += 1
+                    if self.preview_errors <= 3:
+                        self.on_status("Preview decode failed; recording continues: %s" % exc)
+
+                self.total_events += events
+                if recording_active:
+                    with self.record_lock:
+                        if self.record_file:
+                            self.record_events += events
 
                 now = time.monotonic()
                 if now - last_frame_time > self.frame_interval:
@@ -671,8 +690,6 @@ class V4L2EventStream:
                     self.rate_mev_s = delta_events / 1_000_000.0
                     rec = " recording" if self.record_file else ""
                     self.on_status("Live: %.2f Mev/s, buffers=%s%s" % (self.rate_mev_s, self.total_buffers, rec))
-
-                fcntl.ioctl(self.fd, VIDIOC_QBUF, buf)
         except Exception as exc:
             self.on_status("Camera stream failed: %s" % exc)
         finally:

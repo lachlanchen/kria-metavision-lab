@@ -204,6 +204,8 @@ old commit comparison: 80910d3 live path produced 234925 events, 223 buffers, 12
 live renderer regression fix: restored immediate draw-and-decay live path; current path produced 268045 events, 217 buffers, 117 frames in 5 seconds
 live continuity check: after the first 2 seconds, 71 of 71 emitted frames changed instead of fading static
 playback smoke: /home/petalinux/event_recordings/event_20260531_183748.pse2.raw decoded 59459 events from first 512 KiB and rendered nonblank
+recording hot-loop robustness: payload is now copied, V4L2 buffer is requeued immediately, recording write happens before preview decode
+recording smoke: 3350960 byte .pse2.raw file, recorded_bytes=3350960, replay decoded 65345 events from first 512 KiB, preview_errors=0
 ```
 
 Direct stream test:

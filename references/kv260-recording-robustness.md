@@ -32,7 +32,7 @@ Current conclusion:
 
 The important limitation is that the current loop still gives preview work time inside the same capture loop.
 
-Current hot-loop order:
+Old hot-loop order before the 2026-06-01 robustness patch:
 
 ```text
 DQBUF
@@ -43,18 +43,29 @@ emit preview frame when due
 QBUF
 ```
 
-In the code, this currently happens in:
+The old behavior was in:
 
 ```text
 scripts/kv260-event-camera-app.py
 V4L2EventStream._run
 ```
 
+Current hot-loop order after the patch:
+
+```text
+DQBUF
+copy payload bytes
+QBUF immediately
+write recording bytes
+decode/draw preview
+emit preview frame when due
+```
+
 ## Most Important Simple Improvement
 
-The best next improvement is not a complicated queue/thread redesign. It is just to return the V4L2 buffer to the driver as soon as the payload has been copied.
+The best first improvement was not a complicated queue/thread redesign. It was just to return the V4L2 buffer to the driver as soon as the payload was copied.
 
-Recommended hot-loop order:
+Implemented hot-loop order:
 
 ```text
 DQBUF
@@ -141,29 +152,66 @@ The lesson for our app is not "copy the whole SDK architecture." The practical l
 
 Our current Python file object already uses a 1 MiB buffer. That is reasonable for the current app.
 
-## Recommended Implementation Plan
+## Implemented Change
 
-When editing the recorder, make only this focused change first:
+Implemented in:
 
-1. In `V4L2EventStream._run`, after `DQBUF`, copy the payload:
+```text
+scripts/kv260-event-camera-app.py
+V4L2EventStream._run
+```
 
-   ```python
-   payload = bytes(self.buffers[buf.index][:buf.bytesused])
-   ```
+The implementation now does this after `DQBUF`:
 
-2. Immediately call:
+```python
+payload = bytes(self.buffers[buf.index][:buf.bytesused])
+fcntl.ioctl(self.fd, VIDIOC_QBUF, buf)
+```
 
-   ```python
-   fcntl.ioctl(self.fd, VIDIOC_QBUF, buf)
-   ```
+Then it writes `payload` to the recording file if recording is active. Preview decoding happens after the recording write.
 
-3. Then write `payload` if recording.
+Preview decode exceptions are counted and reported, but they no longer stop recording. This keeps recording more important than visualization.
 
-4. Then run `_decode_and_draw(payload)` for preview.
+## Verification
 
-5. Remove the old final `QBUF` at the bottom of the loop so each buffer is queued exactly once.
+Static checks:
 
-6. Keep the rest of the GUI unchanged.
+```text
+python3 -m py_compile scripts/kv260-event-camera-app.py
+git diff --check
+```
+
+Live preview smoke test after the patch:
+
+```text
+LIVE_RESULT frames=91 diffs=90 after_2s_frames=59 after_2s_diffs=59 events=476713 buffers=175 preview_errors=0
+```
+
+Recording smoke test after the patch:
+
+```text
+REC_RESULT path=/home/petalinux/event_recordings/recording_hotloop_test_20260601_061553.pse2.raw
+file_size=3350960
+recorded_bytes=3350960
+record_events=400690
+total_events=545652
+total_buffers=205
+frames=105
+diffs=104
+preview_errors=0
+```
+
+Replay smoke test on that recording:
+
+```text
+REPLAY_RESULT decoded_events=65345 preview_events=65345 nonblank=True
+```
+
+GUI smoke test:
+
+```text
+GUI_SMOKE rc=0
+```
 
 ## Expected Result
 
@@ -175,7 +223,7 @@ After this small change:
 - Recording becomes less dependent on preview speed.
 - The code stays understandable.
 
-This is the best next step before considering any larger queue/thread design.
+This remains the right stopping point before considering any larger queue/thread design. If future tests show recording still suffers under high event rate, then the next step should be measured rather than assumed.
 
 ## References
 
