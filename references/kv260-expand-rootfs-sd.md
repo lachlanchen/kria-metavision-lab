@@ -28,13 +28,7 @@ Installed board-maintenance copy:
 /home/petalinux/SystemMaintenance/expand-rootfs-sd.sh
 ```
 
-Compatibility symlink for the misspelled folder name:
-
-```text
-/home/petalinux/SystemMaintainence -> /home/petalinux/SystemMaintenance
-```
-
-The correct spelling is `SystemMaintenance`.
+The folder name uses the correct spelling: `SystemMaintenance`.
 
 ## Usage
 
