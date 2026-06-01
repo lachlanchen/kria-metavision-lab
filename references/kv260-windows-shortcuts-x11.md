@@ -4,22 +4,21 @@ Generated: 2026-05-31
 
 ## Goal
 
-Provide one Windows entry point for the custom `KV260 Event Camera` GUI while keeping the normal KV260 HDMI desktop launcher working.
+Provide one Windows entry point for the custom `KV260 Event Camera` GUI, common board GUI applications, Jupyter Notebook, and board power actions while keeping the normal KV260 HDMI desktop launcher working.
 
 The installed Windows shortcut is:
 
 ```text
-KV260 Event Camera
+KV260 Control Center
 ```
 
-It opens a small control panel with these actions:
+It opens a control panel with these tabs:
 
-| Button | Result |
+| Tab | Result |
 | --- | --- |
-| `Open On Windows` | Starts VcXsrv if needed, switches the camera to SSH-X11 mode, and shows the GUI on Windows. |
-| `Open On KV260 Display` | Switches the camera to the board HDMI desktop (`DISPLAY=:0`). |
-| `Stop All Viewers` | Stops both custom GUI modes and releases `/dev/video0`. |
-| `Status` | Shows which side is running and whether `/dev/video0` has an owner. |
+| `Camera` | Custom event-camera GUI on Windows or the board display, native Metavision viewer, stop, and status. |
+| `Applications` | PCManFM, Matchbox Terminal, RXVT Terminal, L3afpad, Appearance, touchscreen calibration, preferred apps, and desktop preferences through SSH X11. |
+| `Notebook And Power` | Jupyter Notebook through an SSH tunnel, Jupyter stop, reboot, and shutdown. |
 
 The board-local Applications menu still uses:
 
@@ -53,6 +52,18 @@ Mode switcher used by every Windows entry point:
 
 ```text
 scripts/kv260-event-camera-switch.sh
+```
+
+Generic board GUI app mapper:
+
+```text
+scripts/kv260-remote-gui-app.sh
+```
+
+Jupyter server manager:
+
+```text
+scripts/kv260-jupyter-notebook.sh
 ```
 
 Local HDMI launcher:
@@ -117,20 +128,30 @@ The Windows-side scripts are staged here:
 Installed shortcuts:
 
 ```text
-%USERPROFILE%\Desktop\KV260 Event Camera.lnk
-%APPDATA%\Microsoft\Windows\Start Menu\Programs\KV260\KV260 Event Camera.lnk
+%USERPROFILE%\Desktop\KV260 Control Center.lnk
+%APPDATA%\Microsoft\Windows\Start Menu\Programs\KV260\KV260 Control Center.lnk
 ```
 
 Windows does not provide a reliable supported command-line API for silently pinning arbitrary shortcuts to the taskbar. Use the Start Menu `KV260` folder, then right-click the shortcut and choose `Pin to taskbar`.
 
+The installer also writes the custom shortcut icon:
+
+```text
+%USERPROFILE%\Projects\petalinux\kv260-remote-gui\kv260-control-center.ico
+```
+
 The older direct shortcuts are intentionally removed from the Desktop by the installer:
 
 ```text
+KV260 Event Camera.lnk
 KV260 Event Camera - Board Desktop.lnk
 KV260 Event Camera - Windows X11.lnk
+KV260 Viewer - Open.lnk
+KV260 Viewer - Close.lnk
+kv260-viewer.lnk
 ```
 
-Their PowerShell scripts remain available under `%USERPROFILE%\Projects\petalinux\kv260-remote-gui` for debugging, but the normal workflow is the single `KV260 Event Camera` shortcut.
+Their PowerShell scripts remain available under `%USERPROFILE%\Projects\petalinux\kv260-remote-gui` for debugging, but the normal workflow is the single `KV260 Control Center` shortcut.
 
 ## Windows Prerequisites
 
@@ -184,8 +205,6 @@ Expected output includes:
 SSH=C:\WINDOWS\System32\OpenSSH\ssh.exe
 BOARD_SCRIPT=...
 X11_SCRIPT=...
-board-desktop: stopped
-windows-x11: stopped
 ```
 
 Check Windows X11 prerequisites:
@@ -224,16 +243,27 @@ Board SSH-X11 app log:
 /home/petalinux/.cache/kv260-event-camera/x11-forward.log
 ```
 
+Board Jupyter log:
+
+```text
+/home/petalinux/.cache/kv260-event-camera/jupyter-notebook.log
+```
+
 Windows launcher logs:
 
 ```text
 %TEMP%\kv260-event-camera\board-desktop-launch.log
 %TEMP%\kv260-event-camera\windows-x11-launch.log
+%TEMP%\kv260-event-camera\x11-app-<app-id>.log
 ```
 
 ## Practical Recommendation
 
-Use the single `KV260 Event Camera` Windows shortcut. Choose `Open On Windows` when you want the app on Windows, or `Open On KV260 Display` when you want the app on the board monitor. Switching modes is allowed; the switcher stops the previous mode first.
+Use the single `KV260 Control Center` Windows shortcut. Choose `Open Camera On Windows` when you want the camera app on Windows, or `Open Camera On KV260` when you want the app on the board monitor. Switching camera modes is allowed; the switcher stops the previous mode first.
+
+Use the `Applications` tab for non-camera board GUI apps. Those apps open directly on Windows through SSH X11 and do not require RDP.
+
+Use `Open Jupyter Notebook` instead of the old Jupyter desktop entry. The desktop entry tries to behave like a local browser app; the control center starts the board-side notebook server, opens an SSH tunnel to `127.0.0.1:8888`, and opens the Windows browser.
 
 RDP is not required for either path.
 
@@ -241,10 +271,12 @@ RDP is not required for either path.
 
 Verified on 2026-06-01:
 
-- The single Windows entrance shortcut `KV260 Event Camera.lnk` opens the control panel correctly.
-- The panel buttons work as the preferred workflow.
-- `Open On Windows` is the correct path when the GUI should appear on the Windows desktop through SSH X11.
-- `Open On KV260 Display` is the correct path when the GUI should appear on the board HDMI display.
+- The single Windows entrance shortcut `KV260 Control Center.lnk` opens the control panel correctly.
+- The camera panel buttons work as the preferred workflow.
+- `Open Camera On Windows` is the correct path when the camera GUI should appear on the Windows desktop through SSH X11.
+- `Open Camera On KV260` is the correct path when the camera GUI should appear on the board HDMI display.
+- The `Applications` tab exposes the common board GUI apps through SSH X11.
+- Jupyter start/stop works through `scripts/kv260-jupyter-notebook.sh`; the Windows control center opens it through an SSH tunnel.
 - The old two-shortcut design is intentionally retired because it was too easy to leave `/dev/video0` owned by the other display mode.
 
 Future launcher changes should preserve this single-entry design unless there is a strong reason to split the workflow again.

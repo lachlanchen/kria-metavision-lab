@@ -49,13 +49,15 @@ The desktop installer creates two launchers:
 
 The stable desktop setup keeps only those two system Applications entries and removes duplicate Desktop shortcuts. If Matchbox gets stuck with a busy cursor, use the recovery note in `references/kv260-desktop-stall-recovery.md`.
 
-Windows also has a single launcher panel for switching where the GUI runs:
+Windows also has a single `KV260 Control Center` launcher for the camera, common board GUI apps, Jupyter, and board power actions:
 
 | Action | Behavior |
 | --- | --- |
 | `Open On Windows` | Stops the board GUI first, then opens the custom GUI on Windows through SSH X forwarding |
 | `Open On KV260 Display` | Stops the Windows X11 GUI first, then opens or raises the custom GUI on the KV260 HDMI desktop |
 | `Stop All Viewers` | Releases `/dev/video0` cleanly |
+| `Applications` tab | Opens PCManFM, terminals, L3afpad, Appearance, touchscreen calibration, preferred apps, desktop preferences, and native Metavision through SSH X11 |
+| `Open Jupyter Notebook` | Starts Jupyter on the KV260, opens an SSH tunnel, and opens the Windows browser |
 
 Main files:
 
@@ -64,6 +66,8 @@ scripts/kv260-event-camera-app.py
 scripts/kv260-event-camera-app.sh
 scripts/kv260-event-camera-switch.sh
 scripts/kv260-event-camera-x11.sh
+scripts/kv260-remote-gui-app.sh
+scripts/kv260-jupyter-notebook.sh
 scripts/windows/Open-KV260EventCamera.ps1
 scripts/kv260-metavision-viewer-toggle.sh
 scripts/kv260-install-prophesee-desktop.sh
