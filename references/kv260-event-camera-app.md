@@ -264,3 +264,9 @@ The OpenEB and bias research behind the current viewer design is documented in:
 ```text
 references/kv260-openeb-custom-viewer-research.md
 ```
+
+The recording robustness decision and the recommended minimal next improvement are documented in:
+
+```text
+references/kv260-recording-robustness.md
+```
