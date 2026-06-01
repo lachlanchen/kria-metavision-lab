@@ -113,16 +113,31 @@ references/kv260-event-camera-app.md
 On the KV260:
 
 ```sh
-cd ~/Projects/kria-metavision-lab
-./scripts/kv260-camera-viewer.sh --list
-./scripts/kv260-camera-viewer.sh --start
+cd ~/Projects/kria-kv260-starter
+KV260_SUDO_PASSWORD=<password> ./scripts/kv260-full-setup.sh
 ```
 
-Install or refresh the desktop item:
+Dry-run first if you want to inspect the operations:
 
 ```sh
-./scripts/kv260-install-prophesee-desktop.sh --install
-./scripts/kv260-launch-desktop-viewer.sh
+./scripts/kv260-full-setup.sh --dry-run
+```
+
+Install the optional Windows control center over LAN SSH:
+
+```sh
+KV260_SUDO_PASSWORD=<password> ./scripts/kv260-full-setup.sh \
+  --windows-host <windows-ip> \
+  --windows-user <windows-user> \
+  --windows-key /home/petalinux/.ssh/id_dropbear_rsa \
+  --windows-board-alias petalinux-kv260
+```
+
+Open or stop the custom viewer:
+
+```sh
+./scripts/kv260-event-camera-switch.sh --board
+./scripts/kv260-event-camera-switch.sh --stop-all
 ```
 
 Check and recover the camera stack:
@@ -134,6 +149,12 @@ Check and recover the camera stack:
 ./scripts/kv260-recover-event-viewer.sh
 ```
 
+Full setup details are in:
+
+```text
+references/kv260-full-setup.md
+```
+
 ## Research Notes
 
 The repo keeps both successful paths and blocked paths, because embedded vision bring-up depends on knowing what actually happened on the board.
@@ -143,6 +164,7 @@ Useful references:
 ```text
 references/kv260-prophesee-resources.md
 references/kv260-event-camera-app.md
+references/kv260-full-setup.md
 references/kv260-desktop-stall-recovery.md
 references/kv260-windows-shortcuts-x11.md
 references/kv260-native-metavision-viewer-close-behavior.md
