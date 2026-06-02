@@ -8,6 +8,8 @@
 
 ### AMD Kria KV260에서 Prophesee 이벤트 카메라를 쓰기 위한 GUI 중심 작업 공간
 
+<sub>Powered by [AgInTi Flow](https://flow.lazying.art), created by LazyingArt LLC.</sub>
+
 </div>
 
 ## 소개

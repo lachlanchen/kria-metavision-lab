@@ -8,6 +8,8 @@
 
 ### مساحة عمل بواجهة رسومية لاستخدام كاميرات Prophesee الحدثية على AMD Kria KV260
 
+<sub>Powered by [AgInTi Flow](https://flow.lazying.art), created by LazyingArt LLC.</sub>
+
 </div>
 
 ## ما هذا المشروع

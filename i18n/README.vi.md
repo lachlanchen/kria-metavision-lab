@@ -8,6 +8,8 @@
 
 ### Không gian làm việc ưu tiên GUI cho camera sự kiện Prophesee trên AMD Kria KV260
 
+<sub>Powered by [AgInTi Flow](https://flow.lazying.art), created by LazyingArt LLC.</sub>
+
 </div>
 
 ## Giới Thiệu

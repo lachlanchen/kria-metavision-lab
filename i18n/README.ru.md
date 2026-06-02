@@ -8,6 +8,8 @@
 
 ### GUI-ориентированная рабочая среда для камер Prophesee на AMD Kria KV260
 
+<sub>Powered by [AgInTi Flow](https://flow.lazying.art), created by LazyingArt LLC.</sub>
+
 </div>
 
 ## О Проекте

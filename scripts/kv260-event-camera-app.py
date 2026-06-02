@@ -56,6 +56,7 @@ APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
 )
+BRAND_CREDIT = "Powered by AgInTi Flow - created by LazyingArt LLC - flow.lazying.art"
 
 
 _IOC_NRBITS = 8
@@ -2041,6 +2042,7 @@ class EventCameraApp(Gtk.Window):
             window { background: #f4f6fb; }
             .title { color: #111827; font-size: 22px; font-weight: 700; }
             .subtitle { color: #526070; }
+            .brand { color: #2563eb; font-size: 11px; font-weight: 700; }
             .section { background: #ffffff; border: 1px solid #d9e0ea; border-radius: 8px; padding: 8px; }
             .primary { background: #2563eb; color: #ffffff; font-weight: 700; }
             .success { background: #059669; color: #ffffff; font-weight: 700; }
@@ -2141,6 +2143,11 @@ class EventCameraApp(Gtk.Window):
         subtitle.set_xalign(0)
         subtitle.get_style_context().add_class("subtitle")
         title_box.pack_start(subtitle, False, False, 0)
+
+        brand = Gtk.Label(label=BRAND_CREDIT)
+        brand.set_xalign(0)
+        brand.get_style_context().add_class("brand")
+        title_box.pack_start(brand, False, False, 0)
 
         language_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         language_box.set_halign(Gtk.Align.END)

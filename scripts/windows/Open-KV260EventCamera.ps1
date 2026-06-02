@@ -143,6 +143,7 @@ $script:Translations = @{
     en = @{
         "KV260 Control Center" = "KV260 Control Center"
         "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point."
+        "Powered by AgInTi Flow - created by LazyingArt LLC - flow.lazying.art" = "Powered by AgInTi Flow - created by LazyingArt LLC - flow.lazying.art"
         "Language" = "Language"
         "Camera" = "Camera"
         "Applications" = "Applications"
@@ -1686,6 +1687,14 @@ $subtitle.Location = New-Object System.Drawing.Point(86, 54)
 $subtitle.Size = New-Object System.Drawing.Size(980, 22)
 $form.Controls.Add($subtitle)
 
+$brandCredit = New-Object System.Windows.Forms.Label
+Register-LocalizedControl "Powered by AgInTi Flow - created by LazyingArt LLC - flow.lazying.art" $brandCredit
+$brandCredit.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
+$brandCredit.ForeColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+$brandCredit.Location = New-Object System.Drawing.Point(86, 74)
+$brandCredit.Size = New-Object System.Drawing.Size(980, 18)
+$form.Controls.Add($brandCredit)
+
 $languageLabel = New-Object System.Windows.Forms.Label
 Register-LocalizedControl "Language" $languageLabel
 $languageLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
@@ -1830,6 +1839,7 @@ if ($UiSelfTest) {
     Write-Host "COMPACT_TOOLTIP=$($script:ToolTip.GetToolTip($compactProbe))"
     Write-Host "ARROW_TEXT=$($arrowProbe.Text)"
     Write-Host "ARROW_TOOLTIP=$($script:ToolTip.GetToolTip($arrowProbe))"
+    Write-Host "BRAND_TEXT=$($brandCredit.Text)"
     $arrowProbe.Dispose()
     $compactProbe.Dispose()
     $probe.Dispose()
@@ -2254,6 +2264,7 @@ function Apply-ControlCenterLayout {
         $brandPanel.SetBounds($margin, 16, 46, 46)
         $title.SetBounds(84, 16, [Math]::Max(300, $languageLabelX - 96), 38)
         $subtitle.SetBounds(86, 54, [Math]::Max(300, $right - 86), 22)
+        $brandCredit.SetBounds(86, 74, [Math]::Max(300, $right - 86), 18)
         $languageLabel.SetBounds($languageLabelX, 20, $languageLabelW, 20)
         $script:LanguageCombo.SetBounds($languageX, 18, $languageComboW, 24)
 
@@ -2261,7 +2272,7 @@ function Apply-ControlCenterLayout {
         $footerY = $client.Height - 28 - $footerH
         $outputH = [Math]::Min(150, [Math]::Max(112, [Math]::Floor($client.Height * 0.18)))
         $outputY = $footerY - 12 - $outputH
-        $tabsTop = 92
+        $tabsTop = 100
         $tabsH = [Math]::Max(300, $outputY - 14 - $tabsTop)
 
         $tabs.SetBounds($margin, $tabsTop, [Math]::Max(600, $client.Width - (2 * $margin)), $tabsH)

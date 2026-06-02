@@ -8,6 +8,8 @@
 
 ### 面向 AMD Kria KV260 上 Prophesee 事件相机的 GUI 优先工作区
 
+<sub>Powered by [AgInTi Flow](https://flow.lazying.art), created by LazyingArt LLC.</sub>
+
 </div>
 
 ## 项目简介

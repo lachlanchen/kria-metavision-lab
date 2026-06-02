@@ -8,6 +8,8 @@
 
 ### Un espace de travail orienté GUI pour les caméras événementielles Prophesee sur AMD Kria KV260
 
+<sub>Powered by [AgInTi Flow](https://flow.lazying.art), created by LazyingArt LLC.</sub>
+
 </div>
 
 ## Présentation

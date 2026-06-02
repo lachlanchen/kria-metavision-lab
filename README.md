@@ -8,11 +8,14 @@
 
 ### A GUI-first workspace for using Prophesee event cameras on AMD Kria KV260
 
+<sub>Powered by [AgInTi Flow](https://flow.lazying.art), created by LazyingArt LLC.</sub>
+
 [![Platform](https://img.shields.io/badge/Platform-AMD%20Kria%20KV260-cb0000?style=for-the-badge)](https://www.amd.com/en/products/system-on-modules/kria/k26/kv260-vision-starter-kit/event-based-vision-starter-kit.html)
 [![PetaLinux](https://img.shields.io/badge/PetaLinux-2022.2-0f766e?style=for-the-badge)](https://docs.amd.com/r/en-US/ug1144-petalinux-tools-reference-guide)
 [![Vision](https://img.shields.io/badge/Vision-Event--Based-1f2937?style=for-the-badge)](https://www.prophesee.ai/event-based-metavision-amd-kria-starter-kit/)
 [![Metavision](https://img.shields.io/badge/SDK-Metavision-2563eb?style=for-the-badge)](https://docs.prophesee.ai/amd-kria-starter-kit/)
-[![Flow](https://img.shields.io/badge/Flow-flow.lazying.art-111827?style=for-the-badge)](https://flow.lazying.art)
+[![AgInTi Flow](https://img.shields.io/badge/AgInTi%20Flow-flow.lazying.art-111827?style=for-the-badge)](https://flow.lazying.art)
+[![Company](https://img.shields.io/badge/Company-LazyingArt%20LLC-7c3aed?style=for-the-badge)](https://flow.lazying.art)
 [![Maintainer](https://img.shields.io/badge/Maintainer-lazyingart-0ea5e9?style=for-the-badge)](mailto:lachlan@lazying.art)
 
 <img src="docs/assets/kria-metavision-lab-gui.png" alt="Kria Metavision Lab custom event-camera GUI running on the KV260 desktop" width="100%">
@@ -30,6 +33,8 @@
 ## Why This Exists
 
 **Kria Metavision Lab** is a practical workspace for turning the Prophesee AMD Kria KV260 starter kit into a usable event-vision workstation. It keeps the low-level board bring-up, PetaLinux notes, driver references, desktop launchers, and custom camera UI in one place.
+
+It is powered by **AgInTi Flow** ([flow.lazying.art](https://flow.lazying.art)) and created by **LazyingArt LLC**.
 
 The goal is simple: connect the event camera, boot the KV260, open a desktop item, see live events, record data with predictable filenames, and close the viewer cleanly without fighting stale processes or broken launchers.
 
