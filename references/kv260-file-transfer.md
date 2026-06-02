@@ -184,3 +184,10 @@ Update after multilingual UI pass:
 - The selected language is saved in `%APPDATA%\KV260ControlCenter\settings.json`.
 - The script also accepts `-Language <code>` for launch-time selection, for example `-Language zh-Hans`.
 - `Open-KV260EventCamera.ps1` is stored as UTF-8 with BOM so Windows PowerShell 5 parses non-ASCII translations correctly.
+
+Update after Files tab header layout pass:
+
+- The small pane-header actions now use compact icon-only buttons with localized tooltips.
+- KV260-side path row: path field, refresh icon, up icon.
+- Windows-side path row: path field, refresh icon, up icon, browse icon.
+- This avoids `Refresh` / `Up` text overflow and overlap in narrow panes and in longer translated languages.

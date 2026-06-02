@@ -627,6 +627,7 @@ function Get-ControlSettings {
 
 $script:ControlSettings = Get-ControlSettings
 $script:LocalizedControls = @{}
+$script:LocalizedToolTips = New-Object System.Collections.ArrayList
 
 function Test-LanguageCode {
     param([string]$Code)
@@ -690,11 +691,37 @@ function Register-LocalizedControl {
     $Control.Text = Get-Text $Key
 }
 
+function Register-LocalizedToolTip {
+    param([string]$Key, [object]$Control)
+    [void]$script:LocalizedToolTips.Add([pscustomobject]@{
+        Key = $Key
+        Control = $Control
+    })
+    if (Get-Variable -Name ToolTip -Scope Script -ErrorAction SilentlyContinue) {
+        $script:ToolTip.SetToolTip($Control, (Get-Text $Key))
+    }
+    if ($Control.PSObject.Properties.Name -contains "AccessibleName") {
+        $Control.AccessibleName = Get-Text $Key
+    }
+}
+
 function Apply-Language {
     foreach ($key in @($script:LocalizedControls.Keys)) {
         foreach ($control in @($script:LocalizedControls[$key])) {
             if ($control -and (-not ($control.PSObject.Properties.Name -contains "IsDisposed") -or -not $control.IsDisposed)) {
                 $control.Text = Get-Text $key
+            }
+        }
+    }
+    if (Get-Variable -Name ToolTip -Scope Script -ErrorAction SilentlyContinue) {
+        foreach ($entry in @($script:LocalizedToolTips)) {
+            $control = $entry.Control
+            if ($control -and (-not ($control.PSObject.Properties.Name -contains "IsDisposed") -or -not $control.IsDisposed)) {
+                $text = Get-Text $entry.Key
+                $script:ToolTip.SetToolTip($control, $text)
+                if ($control.PSObject.Properties.Name -contains "AccessibleName") {
+                    $control.AccessibleName = $text
+                }
             }
         }
     }
@@ -1617,6 +1644,11 @@ function Shutdown-KV260 {
 }
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
+$script:ToolTip = New-Object System.Windows.Forms.ToolTip
+$script:ToolTip.InitialDelay = 350
+$script:ToolTip.ReshowDelay = 100
+$script:ToolTip.AutoPopDelay = 5000
+$script:ToolTip.ShowAlways = $true
 
 $form = New-Object System.Windows.Forms.Form
 Register-LocalizedControl "KV260 Control Center" $form
@@ -1713,6 +1745,34 @@ function New-Button {
     return $button
 }
 
+function New-CompactIconButton {
+    param(
+        [string]$Text,
+        [System.Drawing.Color]$BackColor,
+        [string]$Icon = ""
+    )
+    $button = New-Object System.Windows.Forms.Button
+    $button.Size = New-Object System.Drawing.Size(34, 28)
+    $button.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
+    $button.BackColor = $BackColor
+    $button.ForeColor = [System.Drawing.Color]::White
+    $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $button.FlatAppearance.BorderSize = 0
+    $button.FlatAppearance.MouseOverBackColor = Shift-Color -Color $BackColor -Delta 18
+    $button.FlatAppearance.MouseDownBackColor = Shift-Color -Color $BackColor -Delta -24
+    $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $button.Text = ""
+    $button.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $button.ImageAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $button.TextImageRelation = [System.Windows.Forms.TextImageRelation]::Overlay
+    $button.Padding = New-Object System.Windows.Forms.Padding(0)
+    if ($Icon -and $script:ActionImageList.Images.ContainsKey($Icon)) {
+        $button.Image = $script:ActionImageList.Images[$Icon]
+    }
+    Register-LocalizedToolTip $Text $button
+    return $button
+}
+
 function Add-ButtonToPanel {
     param(
         [System.Windows.Forms.FlowLayoutPanel]$Panel,
@@ -1737,9 +1797,14 @@ function New-FlowPanel {
 
 if ($UiSelfTest) {
     $probe = New-Button "Probe Button" ([System.Drawing.Color]::FromArgb(37, 99, 235)) "camera"
+    $compactProbe = New-CompactIconButton "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "refresh"
     Write-Host "ACTION_IMAGES=$($script:ActionImageList.Images.Count)"
     Write-Host "PROBE_HAS_IMAGE=$($null -ne $probe.Image)"
     Write-Host "PROBE_TEXT=$($probe.Text)"
+    Write-Host "COMPACT_HAS_IMAGE=$($null -ne $compactProbe.Image)"
+    Write-Host "COMPACT_TEXT_LENGTH=$($compactProbe.Text.Length)"
+    Write-Host "COMPACT_TOOLTIP=$($script:ToolTip.GetToolTip($compactProbe))"
+    $compactProbe.Dispose()
     $probe.Dispose()
     $form.Dispose()
     exit 0
@@ -1810,7 +1875,7 @@ $filesTab.Controls.Add($remoteLabel)
 $script:LocalPathText = New-Object System.Windows.Forms.TextBox
 $script:LocalPathText.Text = [Environment]::GetFolderPath("MyDocuments")
 $script:LocalPathText.Location = New-Object System.Drawing.Point(532, 68)
-$script:LocalPathText.Size = New-Object System.Drawing.Size(326, 24)
+$script:LocalPathText.Size = New-Object System.Drawing.Size(376, 24)
 $script:LocalPathText.Anchor = "Top,Left,Right"
 $script:LocalPathText.Add_KeyDown({
     if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
@@ -1820,24 +1885,28 @@ $script:LocalPathText.Add_KeyDown({
 })
 $filesTab.Controls.Add($script:LocalPathText)
 
-$localBrowse = New-Button "Browse" ([System.Drawing.Color]::FromArgb(14, 116, 144)) "folder"
-$localBrowse.Size = New-Object System.Drawing.Size(96, 28)
-$localBrowse.Location = New-Object System.Drawing.Point(866, 66)
-$localBrowse.Anchor = "Top,Right"
-$localBrowse.Add_Click({ Browse-LocalFolder })
-$filesTab.Controls.Add($localBrowse)
+$localRefresh = New-CompactIconButton "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "refresh"
+$localRefresh.Location = New-Object System.Drawing.Point(916, 66)
+$localRefresh.Anchor = "Top,Right"
+$localRefresh.Add_Click({ Refresh-LocalFiles })
+$filesTab.Controls.Add($localRefresh)
 
-$localUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "upload"
-$localUp.Size = New-Object System.Drawing.Size(58, 28)
-$localUp.Location = New-Object System.Drawing.Point(970, 66)
+$localUp = New-CompactIconButton "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "upload"
+$localUp.Location = New-Object System.Drawing.Point(954, 66)
 $localUp.Anchor = "Top,Right"
 $localUp.Add_Click({ Set-LocalParent })
 $filesTab.Controls.Add($localUp)
 
+$localBrowse = New-CompactIconButton "Browse" ([System.Drawing.Color]::FromArgb(14, 116, 144)) "folder"
+$localBrowse.Location = New-Object System.Drawing.Point(992, 66)
+$localBrowse.Anchor = "Top,Right"
+$localBrowse.Add_Click({ Browse-LocalFolder })
+$filesTab.Controls.Add($localBrowse)
+
 $script:RemotePathText = New-Object System.Windows.Forms.TextBox
 $script:RemotePathText.Text = $RemoteProject
 $script:RemotePathText.Location = New-Object System.Drawing.Point(14, 68)
-$script:RemotePathText.Size = New-Object System.Drawing.Size(360, 24)
+$script:RemotePathText.Size = New-Object System.Drawing.Size(398, 24)
 $script:RemotePathText.Anchor = "Top,Left"
 $script:RemotePathText.Add_KeyDown({
     if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
@@ -1847,15 +1916,13 @@ $script:RemotePathText.Add_KeyDown({
 })
 $filesTab.Controls.Add($script:RemotePathText)
 
-$remoteRefresh = New-Button "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "refresh"
-$remoteRefresh.Size = New-Object System.Drawing.Size(90, 28)
-$remoteRefresh.Location = New-Object System.Drawing.Point(380, 66)
+$remoteRefresh = New-CompactIconButton "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "refresh"
+$remoteRefresh.Location = New-Object System.Drawing.Point(420, 66)
 $remoteRefresh.Add_Click({ Refresh-RemoteFiles })
 $filesTab.Controls.Add($remoteRefresh)
 
-$remoteUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "upload"
-$remoteUp.Size = New-Object System.Drawing.Size(54, 28)
-$remoteUp.Location = New-Object System.Drawing.Point(476, 66)
+$remoteUp = New-CompactIconButton "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "upload"
+$remoteUp.Location = New-Object System.Drawing.Point(458, 66)
 $remoteUp.Add_Click({ Set-RemoteParent })
 $filesTab.Controls.Add($remoteUp)
 
