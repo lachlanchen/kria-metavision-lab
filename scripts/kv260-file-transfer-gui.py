@@ -105,6 +105,24 @@ def run_command(args, env=None, timeout=None):
     return proc.stdout
 
 
+def parse_json_output(output, context):
+    """Parse the last JSON-looking line from SSH output.
+
+    Some SSH targets print login banners or shell warnings before command
+    output. The transfer UI only needs the final JSON object from the helper
+    command, so keep parsing tolerant without hiding real JSON errors.
+    """
+    lines = [line.strip() for line in str(output).splitlines() if line.strip()]
+    for line in reversed(lines):
+        if line.startswith("{") or line.startswith("["):
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"{context} returned invalid JSON: {exc}") from exc
+    tail = "\n".join(lines[-4:])
+    raise RuntimeError(f"{context} did not return JSON. Last output:\n{tail}")
+
+
 @dataclass
 class RemoteConfig:
     user_host: str
@@ -432,7 +450,11 @@ class TransferApp(Gtk.Window):
         else:
             self.set_idle("Done")
             if done:
-                done(result)
+                try:
+                    done(result)
+                except Exception as exc:
+                    self.set_idle("Failed")
+                    self.log(f"{label} completion failed: {exc}")
         return False
 
     def refresh_local(self):
@@ -493,7 +515,7 @@ class TransferApp(Gtk.Window):
         env = os.environ.copy()
         env.update(env_add)
         out = run_command(args + [f"python3 -c {shell_literal(code)} {shell_literal(path)}"], env=env)
-        return json.loads(out)
+        return parse_json_output(out, "Remote POSIX directory listing")
 
     def _list_remote_windows(self, cfg, path):
         ps_path = powershell_literal(path)
@@ -517,7 +539,7 @@ class TransferApp(Gtk.Window):
             args + [f"powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand {powershell_encoded(ps)}"],
             env=env,
         )
-        return json.loads(out)
+        return parse_json_output(out, "Remote Windows directory listing")
 
     def local_up(self):
         current = Path(self.local_pane.path_entry.get_text().strip() or self.local_pane.path)

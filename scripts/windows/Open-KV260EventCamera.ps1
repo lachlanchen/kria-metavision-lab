@@ -2,7 +2,8 @@
 param(
     [string]$HostAlias = "petalinux-kv260",
     [string]$RemoteProject = "/home/petalinux/Projects/kria-kv260-starter",
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+    [switch]$FilesSelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,8 +11,15 @@ $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BoardScript = Join-Path $InstallDir "Start-KV260EventCamera-BoardDesktop.ps1"
 $X11Script = Join-Path $InstallDir "Start-KV260EventCamera-X11.ps1"
 $LogDir = Join-Path $env:TEMP "kv260-event-camera"
+$ControlLog = Join-Path $LogDir "control-center.log"
 $JupyterLocalPort = 8888
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+
+function Write-AppLog {
+    param([string]$Text)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "[$timestamp] $Text" | Out-File -FilePath $ControlLog -Append -Encoding utf8
+}
 
 function Get-SshExe {
     return (Get-Command ssh.exe -ErrorAction Stop).Source
@@ -21,15 +29,72 @@ function Get-ScpExe {
     return (Get-Command scp.exe -ErrorAction Stop).Source
 }
 
+function Invoke-NativeNoCapture {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments
+    )
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $FilePath @Arguments
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $oldPreference
+    }
+}
+
 function Invoke-KV260Ssh {
     param([string]$RemoteCommand)
     $ssh = Get-SshExe
-    $output = & $ssh -o BatchMode=yes $HostAlias $RemoteCommand 2>&1
-    $code = $LASTEXITCODE
-    if ($code -ne 0) {
-        throw "ssh exited with code $code`r`n$output"
+    $scp = Get-ScpExe
+    Write-AppLog "ssh $HostAlias $RemoteCommand"
+    $id = [Guid]::NewGuid().ToString("N")
+    $remoteOut = "/tmp/kv260-control-center-$id.out"
+    $remoteErr = "/tmp/kv260-control-center-$id.err"
+    $localOut = Join-Path $LogDir "ssh-$id.out"
+    $localErr = Join-Path $LogDir "ssh-$id.err"
+    $wrapped = "$RemoteCommand > $(ConvertTo-RemoteShellLiteral $remoteOut) 2> $(ConvertTo-RemoteShellLiteral $remoteErr)"
+
+    $code = Invoke-NativeNoCapture -FilePath $ssh -Arguments @("-o", "BatchMode=yes", $HostAlias, $wrapped)
+    $outCopyCode = Invoke-NativeNoCapture -FilePath $scp -Arguments @("-O", "${HostAlias}:$remoteOut", $localOut)
+    $errCopyCode = Invoke-NativeNoCapture -FilePath $scp -Arguments @("-O", "${HostAlias}:$remoteErr", $localErr)
+    [void](Invoke-NativeNoCapture -FilePath $ssh -Arguments @("-o", "BatchMode=yes", $HostAlias, "rm -f $(ConvertTo-RemoteShellLiteral $remoteOut) $(ConvertTo-RemoteShellLiteral $remoteErr)"))
+
+    $stdout = if (Test-Path -LiteralPath $localOut) { [string](Get-Content -LiteralPath $localOut -Raw) } else { "" }
+    $stderr = if (Test-Path -LiteralPath $localErr) { [string](Get-Content -LiteralPath $localErr -Raw) } else { "" }
+    Remove-Item -LiteralPath $localOut, $localErr -Force -ErrorAction SilentlyContinue
+    if ($outCopyCode -ne 0 -or $errCopyCode -ne 0) {
+        throw "could not retrieve KV260 command output files"
     }
-    return ($output -join "`r`n")
+    if ($code -ne 0) {
+        throw "ssh exited with code $code`r`n$stdout`r`n$stderr"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+        Write-AppLog "ssh stderr:`r`n$stderr"
+    }
+    return $stdout
+}
+
+function ConvertFrom-JsonTail {
+    param(
+        [string]$Text,
+        [string]$Context = "remote command"
+    )
+    $lines = @($Text -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
+    for ($index = $lines.Count - 1; $index -ge 0; $index--) {
+        $candidate = $lines[$index].Trim()
+        if ($candidate.StartsWith("{") -or $candidate.StartsWith("[")) {
+            try {
+                return ($candidate | ConvertFrom-Json)
+            } catch {
+                Write-AppLog "$Context returned invalid JSON. Raw output:`r`n$Text`r`nException:`r`n$($_ | Out-String)"
+                throw "$Context returned invalid JSON. Details were written to $ControlLog"
+            }
+        }
+    }
+    Write-AppLog "$Context did not return JSON. Raw output:`r`n$Text"
+    throw "$Context did not return JSON. Details were written to $ControlLog"
 }
 
 if ($CheckOnly) {
@@ -56,8 +121,11 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 
 function Add-Log {
     param([string]$Text)
+    Write-AppLog $Text
     $timestamp = Get-Date -Format "HH:mm:ss"
-    $script:OutputBox.AppendText("[$timestamp] $Text`r`n")
+    if (Get-Variable -Name OutputBox -Scope Script -ErrorAction SilentlyContinue) {
+        $script:OutputBox.AppendText("[$timestamp] $Text`r`n")
+    }
 }
 
 function Format-FileSize {
@@ -92,13 +160,9 @@ function Invoke-ScpCopy {
     param([string[]]$Arguments)
     $scp = Get-ScpExe
     Add-Log "scp $($Arguments -join ' ')"
-    $output = & $scp @Arguments 2>&1
-    $code = $LASTEXITCODE
+    $code = Invoke-NativeNoCapture -FilePath $scp -Arguments $Arguments
     if ($code -ne 0) {
-        throw "scp exited with code $code`r`n$($output -join "`r`n")"
-    }
-    if ($output) {
-        Add-Log ($output -join "`r`n")
+        throw "scp exited with code $code"
     }
 }
 
@@ -109,6 +173,7 @@ function Invoke-FileAction {
         [System.Windows.Forms.Application]::DoEvents()
         & $Action
     } catch {
+        Write-AppLog "Files exception:`r`n$($_ | Out-String)"
         Add-Log "Files: $($_.Exception.Message)"
         Show-Message $_.Exception.Message "KV260 File Transfer"
     } finally {
@@ -194,28 +259,27 @@ function Refresh-LocalFiles {
 
 function Get-KV260Directory {
     param([string]$Path)
-    $python = @"
-import json, os, sys
-p = os.path.abspath(sys.argv[1])
-items = []
-for name in sorted(os.listdir(p), key=lambda n: (not os.path.isdir(os.path.join(p, n)), n.lower())):
-    q = os.path.join(p, name)
-    try:
-        s = os.lstat(q)
-    except OSError:
-        continue
-    items.append({
-        "name": name,
-        "path": q,
-        "is_dir": os.path.isdir(q),
-        "size": s.st_size,
-        "mtime": s.st_mtime,
-    })
-print(json.dumps({"path": p, "parent": os.path.dirname(p), "items": items}))
-"@
-    $command = "python3 -c $(ConvertTo-RemoteShellLiteral $python) $(ConvertTo-RemoteShellLiteral $Path)"
+    $project = ConvertTo-RemoteShellLiteral $RemoteProject
+    $targetPath = ConvertTo-RemoteShellLiteral $Path
+    $command = "cd $project && python3 scripts/kv260-list-files-json.py $targetPath"
     $json = Invoke-KV260Ssh $command
-    return ($json | ConvertFrom-Json)
+    return (ConvertFrom-JsonTail -Text $json -Context "KV260 directory listing")
+}
+
+if ($FilesSelfTest) {
+    try {
+        Write-AppLog "FilesSelfTest starting for $HostAlias $RemoteProject"
+        $data = Get-KV260Directory $RemoteProject
+        Write-Host "KV260_PATH=$($data.path)"
+        Write-Host "KV260_ITEMS=$(@($data.items).Count)"
+        Write-Host "CONTROL_LOG=$ControlLog"
+        Write-AppLog "FilesSelfTest passed for $($data.path)"
+        exit 0
+    } catch {
+        Write-AppLog "FilesSelfTest failed:`r`n$($_ | Out-String)"
+        Write-Error $_.Exception.Message
+        exit 1
+    }
 }
 
 function Refresh-RemoteFiles {

@@ -145,3 +145,11 @@ Update after layout/debug pass:
 - Top path controls were spaced wider so Browse/Up buttons do not overlap the path boxes.
 - Board-side GTK app was changed to capture background-thread exceptions safely, avoiding delayed GTK callback tracebacks.
 - Re-ran Windows `-CheckOnly`, board-side Windows directory listing, Windows -> KV260 -> Windows transfer, and board -> Windows -> board transfer after the fix.
+
+Update after Windows popup traceback fix:
+
+- Added `scripts/kv260-list-files-json.py` as the board-side JSON directory listing helper.
+- The Windows Control Center no longer sends inline multi-line Python through SSH for board file listing.
+- The Windows Control Center avoids PowerShell nested `ssh.exe` output capture, which can hang or surface truncated traceback popups in this setup.
+- Board listing now writes command output to temporary files on the KV260, pulls those files with `scp -O`, parses the JSON locally, and cleans up the temporary files.
+- Re-ran deployed Windows `-FilesSelfTest`; it listed `/home/petalinux/Projects/kria-kv260-starter` successfully.
