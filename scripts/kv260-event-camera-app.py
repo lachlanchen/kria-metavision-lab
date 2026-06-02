@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """KV260 Prophesee event-camera app.
 
 This app reads the PSE2/EVT2.1 V4L2 node directly, renders live events with
@@ -51,6 +52,10 @@ DEFAULT_RECORD_DIR = os.path.expanduser(
 APP_LOCK_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_LOCK_PATH", "/tmp/kv260-event-camera-app.lock")
 APP_SOCKET_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_SOCKET", "/tmp/kv260-event-camera-app.sock")
 DEFAULT_RECORD_QUEUE_BUFFERS = int(os.environ.get("KV260_RECORD_QUEUE_BUFFERS", "256"))
+APP_CONFIG_PATH = os.environ.get(
+    "KV260_EVENT_CAMERA_CONFIG",
+    os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
+)
 
 
 _IOC_NRBITS = 8
@@ -186,6 +191,880 @@ BIAS_HELP = {
 
 
 COMMON_BIASES = ("bias_diff_on", "bias_diff_off", "bias_hpf", "bias_fo", "bias_refr", "bias_diff")
+
+
+SUPPORTED_LANGUAGES = (
+    ("en", "English"),
+    ("ar", "العربية"),
+    ("es", "Español"),
+    ("fr", "Français"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+    ("vi", "Tiếng Việt"),
+    ("zh-Hans", "中文 简体"),
+    ("zh-Hant", "中文 繁體"),
+    ("de", "Deutsch"),
+    ("ru", "Русский"),
+)
+
+
+UI_TRANSLATIONS = {
+    "ar": {
+        "KV260 Event Camera": "كاميرا أحداث KV260",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "معاينة PSE2 مباشرة، تسجيل خام، تشغيل، ضبط العرض، وتحكم انحياز IMX636.",
+        "Language": "اللغة",
+        "Camera": "الكاميرا",
+        "Display": "العرض",
+        "Biases": "الانحيازات",
+        "Event Preview": "معاينة الأحداث",
+        "Open Live": "فتح مباشر",
+        "Close": "إغلاق",
+        "Start Recording": "بدء التسجيل",
+        "Stop Recording": "إيقاف التسجيل",
+        "Open Recording": "فتح تسجيل",
+        "Pause": "إيقاف مؤقت",
+        "Resume": "استئناف",
+        "New Name": "اسم جديد",
+        "Recover Stack": "استعادة المكدس",
+        "Quit": "خروج",
+        "Browse": "تصفح",
+        "Record folder": "مجلد التسجيل",
+        "File name": "اسم الملف",
+        "Video node": "عقدة الفيديو",
+        "Recording Priority": "أولوية التسجيل",
+        "Recording: idle": "التسجيل: خامل",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "التسجيل: {mb:.1f} م.ب، {buffers} مخازن، الطابور {pending}/{queue}، إسقاط {drops}",
+        ", preview skipped {count}": "، تخطي معاينة {count}",
+        ", write error": "، خطأ كتابة",
+        "Mode: {mode}": "الوضع: {mode}",
+        "mode.Idle": "خامل",
+        "mode.Live": "مباشر",
+        "mode.Playback": "تشغيل",
+        "Playback accumulation ms": "تراكم التشغيل بالمللي ثانية",
+        "FPS": "إطار/ث",
+        "Palette": "لوحة الألوان",
+        "Polarity": "القطبية",
+        "Point radius": "نصف قطر النقطة",
+        "Event trail": "أثر الحدث",
+        "Playback OSD overlay": "طبقة معلومات التشغيل",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "تستخدم المعاينة المباشرة رسما فوريا مع تلاشي للاستجابة. يتحكم التراكم في تشغيل التسجيل؛ استخدم القطبية والأثر لفحص توازن الأحداث.",
+        "Refresh Biases": "تحديث الانحيازات",
+        "Apply All": "تطبيق الكل",
+        "Reset Defaults": "إعادة الافتراضي",
+        "Save Preset": "حفظ إعداد",
+        "Load Preset": "تحميل إعداد",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "تقرأ انحيازات التحكم من /dev/v4l-subdev3. حدث بعد إعادة تحميل مكدس الكاميرا.",
+        "Bias": "الانحياز",
+        "Value": "القيمة",
+        "Range": "النطاق",
+        "Default": "الافتراضي",
+        "Purpose": "الغرض",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "جاهز. فتح مباشر يملك /dev/video0 مباشرة؛ إغلاق يحرره.",
+        "Select recording folder": "اختر مجلد التسجيل",
+        "Open PSE2/EVT2.1 recording": "فتح تسجيل PSE2/EVT2.1",
+        "PSE2/RAW recordings": "تسجيلات PSE2/RAW",
+        "A source is already open. Close it first.": "يوجد مصدر مفتوح. أغلقه أولا.",
+        "Open Live before recording.": "افتح البث المباشر قبل التسجيل.",
+        "Could not start recording: {error}": "تعذر بدء التسجيل: {error}",
+        "Recovering camera stack...": "استعادة مكدس الكاميرا...",
+        "Recovery complete. Click Open Live.": "اكتملت الاستعادة. انقر فتح مباشر.",
+        "Could not read bias controls: {error}": "تعذرت قراءة الانحيازات: {error}",
+        "No bias controls found on {device}.": "لم يتم العثور على انحيازات في {device}.",
+        "Bias controls refreshed from {device}.": "تم تحديث الانحيازات من {device}.",
+        "Biases applied": "تم تطبيق الانحيازات",
+        "Bias update failed: {error}": "فشل تحديث الانحياز: {error}",
+        "Bias defaults restored": "تمت استعادة الافتراضيات",
+        "Save bias preset": "حفظ إعداد الانحياز",
+        "Bias preset saved: {path}": "تم حفظ إعداد الانحياز: {path}",
+        "Could not save bias preset: {error}": "تعذر حفظ إعداد الانحياز: {error}",
+        "Load bias preset": "تحميل إعداد الانحياز",
+        "JSON presets": "إعدادات JSON",
+        "Bias preset loaded": "تم تحميل إعداد الانحياز",
+        "Could not load bias preset: {error}": "تعذر تحميل إعداد الانحياز: {error}",
+        "palette.Dark": "داكن",
+        "palette.Light": "فاتح",
+        "palette.Gray": "رمادي",
+        "palette.CoolWarm": "بارد/دافئ",
+        "polarity.All": "الكل",
+        "polarity.ON": "تشغيل",
+        "polarity.OFF": "إيقاف",
+    },
+    "es": {
+        "KV260 Event Camera": "Cámara de Eventos KV260",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "Vista previa PSE2 en vivo, grabación cruda, reproducción, ajuste de pantalla y controles de bias IMX636.",
+        "Language": "Idioma",
+        "Camera": "Cámara",
+        "Display": "Pantalla",
+        "Biases": "Biases",
+        "Event Preview": "Vista de eventos",
+        "Open Live": "Abrir en vivo",
+        "Close": "Cerrar",
+        "Start Recording": "Iniciar grabación",
+        "Stop Recording": "Detener grabación",
+        "Open Recording": "Abrir grabación",
+        "Pause": "Pausar",
+        "Resume": "Reanudar",
+        "New Name": "Nuevo nombre",
+        "Recover Stack": "Recuperar stack",
+        "Quit": "Salir",
+        "Browse": "Buscar",
+        "Record folder": "Carpeta de grabación",
+        "File name": "Nombre de archivo",
+        "Video node": "Nodo de video",
+        "Recording Priority": "Prioridad de grabación",
+        "Recording: idle": "Grabación: inactiva",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "Grabación: {mb:.1f} MB, {buffers} buffers, cola {pending}/{queue}, pérdidas {drops}",
+        ", preview skipped {count}": ", vista omitida {count}",
+        ", write error": ", error de escritura",
+        "Mode: {mode}": "Modo: {mode}",
+        "mode.Idle": "Inactivo",
+        "mode.Live": "En vivo",
+        "mode.Playback": "Reproducción",
+        "Playback accumulation ms": "Acumulación de reproducción ms",
+        "FPS": "FPS",
+        "Palette": "Paleta",
+        "Polarity": "Polaridad",
+        "Point radius": "Radio de punto",
+        "Event trail": "Rastro de evento",
+        "Playback OSD overlay": "OSD en reproducción",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "La vista en vivo dibuja y decae al instante para responder rápido. La acumulación controla la reproducción; usa polaridad y rastro para revisar el balance de eventos.",
+        "Refresh Biases": "Actualizar biases",
+        "Apply All": "Aplicar todo",
+        "Reset Defaults": "Restaurar valores",
+        "Save Preset": "Guardar preset",
+        "Load Preset": "Cargar preset",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "Los controles de bias se leen de /dev/v4l-subdev3. Actualiza después de recargar la cámara.",
+        "Bias": "Bias",
+        "Value": "Valor",
+        "Range": "Rango",
+        "Default": "Predeterminado",
+        "Purpose": "Propósito",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "Listo. Abrir en vivo usa /dev/video0 directamente; Cerrar lo libera.",
+        "Select recording folder": "Seleccionar carpeta",
+        "Open PSE2/EVT2.1 recording": "Abrir grabación PSE2/EVT2.1",
+        "PSE2/RAW recordings": "Grabaciones PSE2/RAW",
+        "A source is already open. Close it first.": "Ya hay una fuente abierta. Ciérrala primero.",
+        "Open Live before recording.": "Abre en vivo antes de grabar.",
+        "Could not start recording: {error}": "No se pudo iniciar la grabación: {error}",
+        "Recovering camera stack...": "Recuperando stack de cámara...",
+        "Recovery complete. Click Open Live.": "Recuperación completa. Haz clic en Abrir en vivo.",
+        "Could not read bias controls: {error}": "No se pudieron leer los biases: {error}",
+        "No bias controls found on {device}.": "No se encontraron biases en {device}.",
+        "Bias controls refreshed from {device}.": "Biases actualizados desde {device}.",
+        "Biases applied": "Biases aplicados",
+        "Bias update failed: {error}": "Falló la actualización de bias: {error}",
+        "Bias defaults restored": "Valores de bias restaurados",
+        "Save bias preset": "Guardar preset de bias",
+        "Bias preset saved: {path}": "Preset de bias guardado: {path}",
+        "Could not save bias preset: {error}": "No se pudo guardar el preset: {error}",
+        "Load bias preset": "Cargar preset de bias",
+        "JSON presets": "Presets JSON",
+        "Bias preset loaded": "Preset de bias cargado",
+        "Could not load bias preset: {error}": "No se pudo cargar el preset: {error}",
+        "palette.Dark": "Oscura",
+        "palette.Light": "Clara",
+        "palette.Gray": "Gris",
+        "palette.CoolWarm": "Frío/cálido",
+        "polarity.All": "Todo",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "fr": {
+        "KV260 Event Camera": "Caméra Événementielle KV260",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "Aperçu PSE2 en direct, enregistrement brut, lecture, réglage d’affichage et biais IMX636.",
+        "Language": "Langue",
+        "Camera": "Caméra",
+        "Display": "Affichage",
+        "Biases": "Biais",
+        "Event Preview": "Aperçu des événements",
+        "Open Live": "Ouvrir direct",
+        "Close": "Fermer",
+        "Start Recording": "Démarrer enregistrement",
+        "Stop Recording": "Arrêter enregistrement",
+        "Open Recording": "Ouvrir enregistrement",
+        "Pause": "Pause",
+        "Resume": "Reprendre",
+        "New Name": "Nouveau nom",
+        "Recover Stack": "Récupérer pile",
+        "Quit": "Quitter",
+        "Browse": "Parcourir",
+        "Record folder": "Dossier d’enregistrement",
+        "File name": "Nom du fichier",
+        "Video node": "Nœud vidéo",
+        "Recording Priority": "Priorité enregistrement",
+        "Recording: idle": "Enregistrement : inactif",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "Enregistrement : {mb:.1f} Mo, {buffers} tampons, file {pending}/{queue}, pertes {drops}",
+        ", preview skipped {count}": ", aperçu ignoré {count}",
+        ", write error": ", erreur d’écriture",
+        "Mode: {mode}": "Mode : {mode}",
+        "mode.Idle": "Inactif",
+        "mode.Live": "Direct",
+        "mode.Playback": "Lecture",
+        "Playback accumulation ms": "Accumulation lecture ms",
+        "FPS": "FPS",
+        "Palette": "Palette",
+        "Polarity": "Polarité",
+        "Point radius": "Rayon du point",
+        "Event trail": "Traînée",
+        "Playback OSD overlay": "Surimpression OSD lecture",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "L’aperçu direct dessine puis atténue immédiatement pour rester réactif. L’accumulation contrôle la lecture; utilisez polarité et traînée pour inspecter l’équilibre.",
+        "Refresh Biases": "Actualiser biais",
+        "Apply All": "Tout appliquer",
+        "Reset Defaults": "Réinitialiser",
+        "Save Preset": "Enregistrer preset",
+        "Load Preset": "Charger preset",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "Les biais sont lus depuis /dev/v4l-subdev3. Actualisez après un rechargement de pile caméra.",
+        "Bias": "Biais",
+        "Value": "Valeur",
+        "Range": "Plage",
+        "Default": "Défaut",
+        "Purpose": "Rôle",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "Prêt. Ouvrir direct prend /dev/video0; Fermer le libère.",
+        "Select recording folder": "Choisir dossier",
+        "Open PSE2/EVT2.1 recording": "Ouvrir enregistrement PSE2/EVT2.1",
+        "PSE2/RAW recordings": "Enregistrements PSE2/RAW",
+        "A source is already open. Close it first.": "Une source est déjà ouverte. Fermez-la d’abord.",
+        "Open Live before recording.": "Ouvrez le direct avant d’enregistrer.",
+        "Could not start recording: {error}": "Impossible de démarrer l’enregistrement : {error}",
+        "Recovering camera stack...": "Récupération de la pile caméra...",
+        "Recovery complete. Click Open Live.": "Récupération terminée. Cliquez Ouvrir direct.",
+        "Could not read bias controls: {error}": "Impossible de lire les biais : {error}",
+        "No bias controls found on {device}.": "Aucun biais trouvé sur {device}.",
+        "Bias controls refreshed from {device}.": "Biais actualisés depuis {device}.",
+        "Biases applied": "Biais appliqués",
+        "Bias update failed: {error}": "Échec de mise à jour : {error}",
+        "Bias defaults restored": "Biais par défaut restaurés",
+        "Save bias preset": "Enregistrer preset de biais",
+        "Bias preset saved: {path}": "Preset de biais enregistré : {path}",
+        "Could not save bias preset: {error}": "Impossible d’enregistrer le preset : {error}",
+        "Load bias preset": "Charger preset de biais",
+        "JSON presets": "Presets JSON",
+        "Bias preset loaded": "Preset de biais chargé",
+        "Could not load bias preset: {error}": "Impossible de charger le preset : {error}",
+        "palette.Dark": "Sombre",
+        "palette.Light": "Clair",
+        "palette.Gray": "Gris",
+        "palette.CoolWarm": "Froid/chaud",
+        "polarity.All": "Tout",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "ja": {
+        "KV260 Event Camera": "KV260 イベントカメラ",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "PSE2 ライブ表示、RAW 記録、再生、表示調整、IMX636 バイアス制御。",
+        "Language": "言語",
+        "Camera": "カメラ",
+        "Display": "表示",
+        "Biases": "バイアス",
+        "Event Preview": "イベント表示",
+        "Open Live": "ライブ開始",
+        "Close": "閉じる",
+        "Start Recording": "記録開始",
+        "Stop Recording": "記録停止",
+        "Open Recording": "記録を開く",
+        "Pause": "一時停止",
+        "Resume": "再開",
+        "New Name": "新しい名前",
+        "Recover Stack": "スタック復旧",
+        "Quit": "終了",
+        "Browse": "参照",
+        "Record folder": "記録フォルダ",
+        "File name": "ファイル名",
+        "Video node": "ビデオノード",
+        "Recording Priority": "記録優先",
+        "Recording: idle": "記録: 待機中",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "記録: {mb:.1f} MB、{buffers} バッファ、キュー {pending}/{queue}、欠落 {drops}",
+        ", preview skipped {count}": "、表示スキップ {count}",
+        ", write error": "、書き込みエラー",
+        "Mode: {mode}": "モード: {mode}",
+        "mode.Idle": "待機",
+        "mode.Live": "ライブ",
+        "mode.Playback": "再生",
+        "Playback accumulation ms": "再生蓄積 ms",
+        "FPS": "FPS",
+        "Palette": "パレット",
+        "Polarity": "極性",
+        "Point radius": "点の半径",
+        "Event trail": "イベント残像",
+        "Playback OSD overlay": "再生 OSD 表示",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "ライブ表示は応答性のため即時描画と減衰を使います。蓄積は記録再生用で、極性と残像でイベントのバランスを確認できます。",
+        "Refresh Biases": "バイアス更新",
+        "Apply All": "すべて適用",
+        "Reset Defaults": "既定に戻す",
+        "Save Preset": "プリセット保存",
+        "Load Preset": "プリセット読込",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "バイアスは /dev/v4l-subdev3 から読みます。カメラスタック再読込後に更新してください。",
+        "Bias": "バイアス",
+        "Value": "値",
+        "Range": "範囲",
+        "Default": "既定",
+        "Purpose": "用途",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "準備完了。ライブ開始は /dev/video0 を直接使い、閉じると解放します。",
+        "Select recording folder": "記録フォルダ選択",
+        "Open PSE2/EVT2.1 recording": "PSE2/EVT2.1 記録を開く",
+        "PSE2/RAW recordings": "PSE2/RAW 記録",
+        "A source is already open. Close it first.": "ソースは既に開いています。先に閉じてください。",
+        "Open Live before recording.": "記録前にライブを開始してください。",
+        "Could not start recording: {error}": "記録を開始できません: {error}",
+        "Recovering camera stack...": "カメラスタックを復旧中...",
+        "Recovery complete. Click Open Live.": "復旧完了。ライブ開始を押してください。",
+        "Could not read bias controls: {error}": "バイアスを読めません: {error}",
+        "No bias controls found on {device}.": "{device} にバイアスがありません。",
+        "Bias controls refreshed from {device}.": "{device} からバイアスを更新しました。",
+        "Biases applied": "バイアスを適用しました",
+        "Bias update failed: {error}": "バイアス更新失敗: {error}",
+        "Bias defaults restored": "既定バイアスに戻しました",
+        "Save bias preset": "バイアスプリセット保存",
+        "Bias preset saved: {path}": "バイアスプリセット保存: {path}",
+        "Could not save bias preset: {error}": "プリセット保存不可: {error}",
+        "Load bias preset": "バイアスプリセット読込",
+        "JSON presets": "JSON プリセット",
+        "Bias preset loaded": "バイアスプリセット読込完了",
+        "Could not load bias preset: {error}": "プリセット読込不可: {error}",
+        "palette.Dark": "ダーク",
+        "palette.Light": "ライト",
+        "palette.Gray": "グレー",
+        "palette.CoolWarm": "寒色/暖色",
+        "polarity.All": "すべて",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "ko": {
+        "KV260 Event Camera": "KV260 이벤트 카메라",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "라이브 PSE2 미리보기, 원시 기록, 재생, 표시 조정, IMX636 바이어스 제어.",
+        "Language": "언어",
+        "Camera": "카메라",
+        "Display": "표시",
+        "Biases": "바이어스",
+        "Event Preview": "이벤트 미리보기",
+        "Open Live": "라이브 열기",
+        "Close": "닫기",
+        "Start Recording": "기록 시작",
+        "Stop Recording": "기록 중지",
+        "Open Recording": "기록 열기",
+        "Pause": "일시정지",
+        "Resume": "다시 시작",
+        "New Name": "새 이름",
+        "Recover Stack": "스택 복구",
+        "Quit": "종료",
+        "Browse": "찾기",
+        "Record folder": "기록 폴더",
+        "File name": "파일 이름",
+        "Video node": "비디오 노드",
+        "Recording Priority": "기록 우선",
+        "Recording: idle": "기록: 대기",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "기록: {mb:.1f} MB, {buffers} 버퍼, 큐 {pending}/{queue}, 드롭 {drops}",
+        ", preview skipped {count}": ", 미리보기 건너뜀 {count}",
+        ", write error": ", 쓰기 오류",
+        "Mode: {mode}": "모드: {mode}",
+        "mode.Idle": "대기",
+        "mode.Live": "라이브",
+        "mode.Playback": "재생",
+        "Playback accumulation ms": "재생 누적 ms",
+        "FPS": "FPS",
+        "Palette": "팔레트",
+        "Polarity": "극성",
+        "Point radius": "점 반경",
+        "Event trail": "이벤트 잔상",
+        "Playback OSD overlay": "재생 OSD 오버레이",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "라이브 미리보기는 반응성을 위해 즉시 그리고 감쇠합니다. 누적은 기록 재생에 사용하고, 극성과 잔상으로 이벤트 균형을 확인합니다.",
+        "Refresh Biases": "바이어스 새로고침",
+        "Apply All": "모두 적용",
+        "Reset Defaults": "기본값 복원",
+        "Save Preset": "프리셋 저장",
+        "Load Preset": "프리셋 불러오기",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "바이어스 제어는 /dev/v4l-subdev3에서 읽습니다. 카메라 스택 재로드 후 새로고침하세요.",
+        "Bias": "바이어스",
+        "Value": "값",
+        "Range": "범위",
+        "Default": "기본값",
+        "Purpose": "목적",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "준비됨. 라이브 열기는 /dev/video0을 직접 사용하고 닫기는 해제합니다.",
+        "Select recording folder": "기록 폴더 선택",
+        "Open PSE2/EVT2.1 recording": "PSE2/EVT2.1 기록 열기",
+        "PSE2/RAW recordings": "PSE2/RAW 기록",
+        "A source is already open. Close it first.": "소스가 이미 열려 있습니다. 먼저 닫으세요.",
+        "Open Live before recording.": "기록 전에 라이브를 여세요.",
+        "Could not start recording: {error}": "기록을 시작할 수 없음: {error}",
+        "Recovering camera stack...": "카메라 스택 복구 중...",
+        "Recovery complete. Click Open Live.": "복구 완료. 라이브 열기를 누르세요.",
+        "Could not read bias controls: {error}": "바이어스를 읽을 수 없음: {error}",
+        "No bias controls found on {device}.": "{device}에서 바이어스를 찾지 못했습니다.",
+        "Bias controls refreshed from {device}.": "{device}에서 바이어스를 새로고침했습니다.",
+        "Biases applied": "바이어스 적용됨",
+        "Bias update failed: {error}": "바이어스 업데이트 실패: {error}",
+        "Bias defaults restored": "바이어스 기본값 복원됨",
+        "Save bias preset": "바이어스 프리셋 저장",
+        "Bias preset saved: {path}": "바이어스 프리셋 저장: {path}",
+        "Could not save bias preset: {error}": "프리셋 저장 불가: {error}",
+        "Load bias preset": "바이어스 프리셋 불러오기",
+        "JSON presets": "JSON 프리셋",
+        "Bias preset loaded": "바이어스 프리셋 불러옴",
+        "Could not load bias preset: {error}": "프리셋 불러오기 불가: {error}",
+        "palette.Dark": "어둡게",
+        "palette.Light": "밝게",
+        "palette.Gray": "회색",
+        "palette.CoolWarm": "차가움/따뜻함",
+        "polarity.All": "전체",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "vi": {
+        "KV260 Event Camera": "Camera sự kiện KV260",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "Xem PSE2 trực tiếp, ghi raw, phát lại, chỉnh hiển thị và bias IMX636.",
+        "Language": "Ngôn ngữ",
+        "Camera": "Camera",
+        "Display": "Hiển thị",
+        "Biases": "Bias",
+        "Event Preview": "Xem sự kiện",
+        "Open Live": "Mở trực tiếp",
+        "Close": "Đóng",
+        "Start Recording": "Bắt đầu ghi",
+        "Stop Recording": "Dừng ghi",
+        "Open Recording": "Mở bản ghi",
+        "Pause": "Tạm dừng",
+        "Resume": "Tiếp tục",
+        "New Name": "Tên mới",
+        "Recover Stack": "Khôi phục stack",
+        "Quit": "Thoát",
+        "Browse": "Duyệt",
+        "Record folder": "Thư mục ghi",
+        "File name": "Tên tệp",
+        "Video node": "Nút video",
+        "Recording Priority": "Ưu tiên ghi",
+        "Recording: idle": "Ghi: chờ",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "Ghi: {mb:.1f} MB, {buffers} bộ đệm, hàng đợi {pending}/{queue}, rơi {drops}",
+        ", preview skipped {count}": ", bỏ xem {count}",
+        ", write error": ", lỗi ghi",
+        "Mode: {mode}": "Chế độ: {mode}",
+        "mode.Idle": "Chờ",
+        "mode.Live": "Trực tiếp",
+        "mode.Playback": "Phát lại",
+        "Playback accumulation ms": "Tích lũy phát lại ms",
+        "FPS": "FPS",
+        "Palette": "Bảng màu",
+        "Polarity": "Cực tính",
+        "Point radius": "Bán kính điểm",
+        "Event trail": "Vệt sự kiện",
+        "Playback OSD overlay": "OSD phát lại",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "Xem trực tiếp vẽ và làm mờ ngay để phản hồi nhanh. Tích lũy dùng cho phát lại; dùng cực tính và vệt để kiểm tra cân bằng sự kiện.",
+        "Refresh Biases": "Làm mới bias",
+        "Apply All": "Áp dụng tất cả",
+        "Reset Defaults": "Về mặc định",
+        "Save Preset": "Lưu preset",
+        "Load Preset": "Tải preset",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "Điều khiển bias đọc từ /dev/v4l-subdev3. Làm mới sau khi nạp lại stack camera.",
+        "Bias": "Bias",
+        "Value": "Giá trị",
+        "Range": "Dải",
+        "Default": "Mặc định",
+        "Purpose": "Mục đích",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "Sẵn sàng. Mở trực tiếp dùng /dev/video0; Đóng sẽ nhả nó.",
+        "Select recording folder": "Chọn thư mục ghi",
+        "Open PSE2/EVT2.1 recording": "Mở bản ghi PSE2/EVT2.1",
+        "PSE2/RAW recordings": "Bản ghi PSE2/RAW",
+        "A source is already open. Close it first.": "Nguồn đã mở. Hãy đóng trước.",
+        "Open Live before recording.": "Mở trực tiếp trước khi ghi.",
+        "Could not start recording: {error}": "Không thể bắt đầu ghi: {error}",
+        "Recovering camera stack...": "Đang khôi phục stack camera...",
+        "Recovery complete. Click Open Live.": "Khôi phục xong. Bấm Mở trực tiếp.",
+        "Could not read bias controls: {error}": "Không thể đọc bias: {error}",
+        "No bias controls found on {device}.": "Không thấy bias trên {device}.",
+        "Bias controls refreshed from {device}.": "Đã làm mới bias từ {device}.",
+        "Biases applied": "Đã áp dụng bias",
+        "Bias update failed: {error}": "Cập nhật bias lỗi: {error}",
+        "Bias defaults restored": "Đã khôi phục bias mặc định",
+        "Save bias preset": "Lưu preset bias",
+        "Bias preset saved: {path}": "Đã lưu preset bias: {path}",
+        "Could not save bias preset: {error}": "Không thể lưu preset: {error}",
+        "Load bias preset": "Tải preset bias",
+        "JSON presets": "Preset JSON",
+        "Bias preset loaded": "Đã tải preset bias",
+        "Could not load bias preset: {error}": "Không thể tải preset: {error}",
+        "palette.Dark": "Tối",
+        "palette.Light": "Sáng",
+        "palette.Gray": "Xám",
+        "palette.CoolWarm": "Lạnh/ấm",
+        "polarity.All": "Tất cả",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "zh-Hans": {
+        "KV260 Event Camera": "KV260 事件相机",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "实时 PSE2 预览、原始录制、回放、显示调节和 IMX636 bias 控制。",
+        "Language": "语言",
+        "Camera": "相机",
+        "Display": "显示",
+        "Biases": "Bias 设置",
+        "Event Preview": "事件预览",
+        "Open Live": "打开实时",
+        "Close": "关闭",
+        "Start Recording": "开始录制",
+        "Stop Recording": "停止录制",
+        "Open Recording": "打开录制",
+        "Pause": "暂停",
+        "Resume": "继续",
+        "New Name": "新文件名",
+        "Recover Stack": "恢复相机栈",
+        "Quit": "退出",
+        "Browse": "浏览",
+        "Record folder": "录制文件夹",
+        "File name": "文件名",
+        "Video node": "视频节点",
+        "Recording Priority": "录制优先",
+        "Recording: idle": "录制：空闲",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "录制：{mb:.1f} MB，{buffers} 缓冲，队列 {pending}/{queue}，丢弃 {drops}",
+        ", preview skipped {count}": "，预览跳过 {count}",
+        ", write error": "，写入错误",
+        "Mode: {mode}": "模式：{mode}",
+        "mode.Idle": "空闲",
+        "mode.Live": "实时",
+        "mode.Playback": "回放",
+        "Playback accumulation ms": "回放累积 ms",
+        "FPS": "FPS",
+        "Palette": "配色",
+        "Polarity": "极性",
+        "Point radius": "点半径",
+        "Event trail": "事件拖影",
+        "Playback OSD overlay": "回放 OSD 叠加",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "实时预览使用立即绘制和衰减以保证响应。累积用于录制回放；可用极性和拖影查看事件平衡。",
+        "Refresh Biases": "刷新 Bias",
+        "Apply All": "全部应用",
+        "Reset Defaults": "恢复默认",
+        "Save Preset": "保存预设",
+        "Load Preset": "加载预设",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "Bias 控制从 /dev/v4l-subdev3 读取。相机栈重载后请刷新。",
+        "Bias": "Bias",
+        "Value": "值",
+        "Range": "范围",
+        "Default": "默认",
+        "Purpose": "用途",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "就绪。打开实时会直接占用 /dev/video0；关闭会释放它。",
+        "Select recording folder": "选择录制文件夹",
+        "Open PSE2/EVT2.1 recording": "打开 PSE2/EVT2.1 录制",
+        "PSE2/RAW recordings": "PSE2/RAW 录制",
+        "A source is already open. Close it first.": "已有源打开。请先关闭。",
+        "Open Live before recording.": "录制前请先打开实时。",
+        "Could not start recording: {error}": "无法开始录制：{error}",
+        "Recovering camera stack...": "正在恢复相机栈...",
+        "Recovery complete. Click Open Live.": "恢复完成。点击打开实时。",
+        "Could not read bias controls: {error}": "无法读取 bias 控制：{error}",
+        "No bias controls found on {device}.": "在 {device} 上没有找到 bias 控制。",
+        "Bias controls refreshed from {device}.": "已从 {device} 刷新 bias 控制。",
+        "Biases applied": "Bias 已应用",
+        "Bias update failed: {error}": "Bias 更新失败：{error}",
+        "Bias defaults restored": "Bias 默认值已恢复",
+        "Save bias preset": "保存 bias 预设",
+        "Bias preset saved: {path}": "Bias 预设已保存：{path}",
+        "Could not save bias preset: {error}": "无法保存 bias 预设：{error}",
+        "Load bias preset": "加载 bias 预设",
+        "JSON presets": "JSON 预设",
+        "Bias preset loaded": "Bias 预设已加载",
+        "Could not load bias preset: {error}": "无法加载 bias 预设：{error}",
+        "palette.Dark": "深色",
+        "palette.Light": "浅色",
+        "palette.Gray": "灰度",
+        "palette.CoolWarm": "冷暖",
+        "polarity.All": "全部",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "zh-Hant": {
+        "KV260 Event Camera": "KV260 事件相機",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "即時 PSE2 預覽、原始錄製、回放、顯示調整與 IMX636 bias 控制。",
+        "Language": "語言",
+        "Camera": "相機",
+        "Display": "顯示",
+        "Biases": "Bias 設定",
+        "Event Preview": "事件預覽",
+        "Open Live": "開啟即時",
+        "Close": "關閉",
+        "Start Recording": "開始錄製",
+        "Stop Recording": "停止錄製",
+        "Open Recording": "開啟錄製",
+        "Pause": "暫停",
+        "Resume": "繼續",
+        "New Name": "新檔名",
+        "Recover Stack": "恢復相機堆疊",
+        "Quit": "退出",
+        "Browse": "瀏覽",
+        "Record folder": "錄製資料夾",
+        "File name": "檔名",
+        "Video node": "視訊節點",
+        "Recording Priority": "錄製優先",
+        "Recording: idle": "錄製：閒置",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "錄製：{mb:.1f} MB，{buffers} 緩衝，佇列 {pending}/{queue}，丟棄 {drops}",
+        ", preview skipped {count}": "，預覽跳過 {count}",
+        ", write error": "，寫入錯誤",
+        "Mode: {mode}": "模式：{mode}",
+        "mode.Idle": "閒置",
+        "mode.Live": "即時",
+        "mode.Playback": "回放",
+        "Playback accumulation ms": "回放累積 ms",
+        "FPS": "FPS",
+        "Palette": "配色",
+        "Polarity": "極性",
+        "Point radius": "點半徑",
+        "Event trail": "事件拖影",
+        "Playback OSD overlay": "回放 OSD 疊加",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "即時預覽使用立即繪製與衰減來保持反應。累積用於錄製回放；可用極性與拖影檢查事件平衡。",
+        "Refresh Biases": "重新整理 Bias",
+        "Apply All": "全部套用",
+        "Reset Defaults": "還原預設",
+        "Save Preset": "儲存預設",
+        "Load Preset": "載入預設",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "Bias 控制從 /dev/v4l-subdev3 讀取。相機堆疊重載後請重新整理。",
+        "Bias": "Bias",
+        "Value": "值",
+        "Range": "範圍",
+        "Default": "預設",
+        "Purpose": "用途",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "就緒。開啟即時會直接佔用 /dev/video0；關閉會釋放它。",
+        "Select recording folder": "選擇錄製資料夾",
+        "Open PSE2/EVT2.1 recording": "開啟 PSE2/EVT2.1 錄製",
+        "PSE2/RAW recordings": "PSE2/RAW 錄製",
+        "A source is already open. Close it first.": "已有來源開啟。請先關閉。",
+        "Open Live before recording.": "錄製前請先開啟即時。",
+        "Could not start recording: {error}": "無法開始錄製：{error}",
+        "Recovering camera stack...": "正在恢復相機堆疊...",
+        "Recovery complete. Click Open Live.": "恢復完成。點擊開啟即時。",
+        "Could not read bias controls: {error}": "無法讀取 bias 控制：{error}",
+        "No bias controls found on {device}.": "在 {device} 上找不到 bias 控制。",
+        "Bias controls refreshed from {device}.": "已從 {device} 重新整理 bias 控制。",
+        "Biases applied": "Bias 已套用",
+        "Bias update failed: {error}": "Bias 更新失敗：{error}",
+        "Bias defaults restored": "Bias 預設值已還原",
+        "Save bias preset": "儲存 bias 預設",
+        "Bias preset saved: {path}": "Bias 預設已儲存：{path}",
+        "Could not save bias preset: {error}": "無法儲存 bias 預設：{error}",
+        "Load bias preset": "載入 bias 預設",
+        "JSON presets": "JSON 預設",
+        "Bias preset loaded": "Bias 預設已載入",
+        "Could not load bias preset: {error}": "無法載入 bias 預設：{error}",
+        "palette.Dark": "深色",
+        "palette.Light": "淺色",
+        "palette.Gray": "灰階",
+        "palette.CoolWarm": "冷暖",
+        "polarity.All": "全部",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "de": {
+        "KV260 Event Camera": "KV260 Ereigniskamera",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "Live-PSE2-Vorschau, Rohaufzeichnung, Wiedergabe, Anzeigeabstimmung und IMX636-Biassteuerung.",
+        "Language": "Sprache",
+        "Camera": "Kamera",
+        "Display": "Anzeige",
+        "Biases": "Biases",
+        "Event Preview": "Ereignisvorschau",
+        "Open Live": "Live öffnen",
+        "Close": "Schließen",
+        "Start Recording": "Aufnahme starten",
+        "Stop Recording": "Aufnahme stoppen",
+        "Open Recording": "Aufnahme öffnen",
+        "Pause": "Pause",
+        "Resume": "Fortsetzen",
+        "New Name": "Neuer Name",
+        "Recover Stack": "Stack wiederherstellen",
+        "Quit": "Beenden",
+        "Browse": "Durchsuchen",
+        "Record folder": "Aufnahmeordner",
+        "File name": "Dateiname",
+        "Video node": "Videoknoten",
+        "Recording Priority": "Aufnahmepriorität",
+        "Recording: idle": "Aufnahme: bereit",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "Aufnahme: {mb:.1f} MB, {buffers} Puffer, Queue {pending}/{queue}, Drops {drops}",
+        ", preview skipped {count}": ", Vorschau übersprungen {count}",
+        ", write error": ", Schreibfehler",
+        "Mode: {mode}": "Modus: {mode}",
+        "mode.Idle": "Bereit",
+        "mode.Live": "Live",
+        "mode.Playback": "Wiedergabe",
+        "Playback accumulation ms": "Wiedergabe-Akkumulation ms",
+        "FPS": "FPS",
+        "Palette": "Palette",
+        "Polarity": "Polarität",
+        "Point radius": "Punktradius",
+        "Event trail": "Ereignisspur",
+        "Playback OSD overlay": "Wiedergabe-OSD",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "Die Live-Vorschau zeichnet sofort und lässt nach, damit sie reaktionsschnell bleibt. Akkumulation steuert die Wiedergabe; Polarität und Spur helfen beim Prüfen der Ereignisbalance.",
+        "Refresh Biases": "Biases aktualisieren",
+        "Apply All": "Alle anwenden",
+        "Reset Defaults": "Standardwerte",
+        "Save Preset": "Preset speichern",
+        "Load Preset": "Preset laden",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "Biaswerte werden aus /dev/v4l-subdev3 gelesen. Nach Kamera-Stack-Reload aktualisieren.",
+        "Bias": "Bias",
+        "Value": "Wert",
+        "Range": "Bereich",
+        "Default": "Standard",
+        "Purpose": "Zweck",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "Bereit. Live öffnen nutzt /dev/video0 direkt; Schließen gibt es frei.",
+        "Select recording folder": "Aufnahmeordner wählen",
+        "Open PSE2/EVT2.1 recording": "PSE2/EVT2.1-Aufnahme öffnen",
+        "PSE2/RAW recordings": "PSE2/RAW-Aufnahmen",
+        "A source is already open. Close it first.": "Eine Quelle ist bereits offen. Erst schließen.",
+        "Open Live before recording.": "Vor der Aufnahme Live öffnen.",
+        "Could not start recording: {error}": "Aufnahme konnte nicht starten: {error}",
+        "Recovering camera stack...": "Kamera-Stack wird wiederhergestellt...",
+        "Recovery complete. Click Open Live.": "Wiederherstellung fertig. Klicken Sie Live öffnen.",
+        "Could not read bias controls: {error}": "Biaswerte konnten nicht gelesen werden: {error}",
+        "No bias controls found on {device}.": "Keine Biaswerte auf {device} gefunden.",
+        "Bias controls refreshed from {device}.": "Biaswerte aus {device} aktualisiert.",
+        "Biases applied": "Biases angewendet",
+        "Bias update failed: {error}": "Bias-Update fehlgeschlagen: {error}",
+        "Bias defaults restored": "Bias-Standardwerte wiederhergestellt",
+        "Save bias preset": "Bias-Preset speichern",
+        "Bias preset saved: {path}": "Bias-Preset gespeichert: {path}",
+        "Could not save bias preset: {error}": "Bias-Preset konnte nicht gespeichert werden: {error}",
+        "Load bias preset": "Bias-Preset laden",
+        "JSON presets": "JSON-Presets",
+        "Bias preset loaded": "Bias-Preset geladen",
+        "Could not load bias preset: {error}": "Bias-Preset konnte nicht geladen werden: {error}",
+        "palette.Dark": "Dunkel",
+        "palette.Light": "Hell",
+        "palette.Gray": "Grau",
+        "palette.CoolWarm": "Kalt/warm",
+        "polarity.All": "Alle",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+    "ru": {
+        "KV260 Event Camera": "Событийная камера KV260",
+        "Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.": "Живой просмотр PSE2, raw-запись, воспроизведение, настройка отображения и bias IMX636.",
+        "Language": "Язык",
+        "Camera": "Камера",
+        "Display": "Экран",
+        "Biases": "Bias",
+        "Event Preview": "Просмотр событий",
+        "Open Live": "Открыть live",
+        "Close": "Закрыть",
+        "Start Recording": "Начать запись",
+        "Stop Recording": "Остановить запись",
+        "Open Recording": "Открыть запись",
+        "Pause": "Пауза",
+        "Resume": "Продолжить",
+        "New Name": "Новое имя",
+        "Recover Stack": "Восстановить стек",
+        "Quit": "Выход",
+        "Browse": "Обзор",
+        "Record folder": "Папка записи",
+        "File name": "Имя файла",
+        "Video node": "Видеоузел",
+        "Recording Priority": "Приоритет записи",
+        "Recording: idle": "Запись: ожидание",
+        "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}": "Запись: {mb:.1f} MB, {buffers} буферов, очередь {pending}/{queue}, потери {drops}",
+        ", preview skipped {count}": ", просмотр пропущен {count}",
+        ", write error": ", ошибка записи",
+        "Mode: {mode}": "Режим: {mode}",
+        "mode.Idle": "Ожидание",
+        "mode.Live": "Live",
+        "mode.Playback": "Воспроизведение",
+        "Playback accumulation ms": "Накопление playback ms",
+        "FPS": "FPS",
+        "Palette": "Палитра",
+        "Polarity": "Полярность",
+        "Point radius": "Радиус точки",
+        "Event trail": "След событий",
+        "Playback OSD overlay": "OSD при playback",
+        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "Live-просмотр рисует сразу и затухает для отзывчивости. Накопление управляет воспроизведением; полярность и след помогают проверять баланс событий.",
+        "Refresh Biases": "Обновить bias",
+        "Apply All": "Применить все",
+        "Reset Defaults": "Сбросить",
+        "Save Preset": "Сохранить пресет",
+        "Load Preset": "Загрузить пресет",
+        "Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.": "Bias читаются из /dev/v4l-subdev3. Обновляйте после перезагрузки стека камеры.",
+        "Bias": "Bias",
+        "Value": "Значение",
+        "Range": "Диапазон",
+        "Default": "По умолчанию",
+        "Purpose": "Назначение",
+        "Ready. Open Live owns /dev/video0 directly; Close releases it.": "Готово. Open Live напрямую занимает /dev/video0; Close освобождает его.",
+        "Select recording folder": "Выбрать папку записи",
+        "Open PSE2/EVT2.1 recording": "Открыть запись PSE2/EVT2.1",
+        "PSE2/RAW recordings": "Записи PSE2/RAW",
+        "A source is already open. Close it first.": "Источник уже открыт. Сначала закройте.",
+        "Open Live before recording.": "Откройте live перед записью.",
+        "Could not start recording: {error}": "Не удалось начать запись: {error}",
+        "Recovering camera stack...": "Восстановление стека камеры...",
+        "Recovery complete. Click Open Live.": "Восстановление готово. Нажмите Open Live.",
+        "Could not read bias controls: {error}": "Не удалось прочитать bias: {error}",
+        "No bias controls found on {device}.": "Bias не найдены на {device}.",
+        "Bias controls refreshed from {device}.": "Bias обновлены из {device}.",
+        "Biases applied": "Bias применены",
+        "Bias update failed: {error}": "Ошибка обновления bias: {error}",
+        "Bias defaults restored": "Bias сброшены",
+        "Save bias preset": "Сохранить bias-пресет",
+        "Bias preset saved: {path}": "Bias-пресет сохранен: {path}",
+        "Could not save bias preset: {error}": "Не удалось сохранить пресет: {error}",
+        "Load bias preset": "Загрузить bias-пресет",
+        "JSON presets": "JSON-пресеты",
+        "Bias preset loaded": "Bias-пресет загружен",
+        "Could not load bias preset: {error}": "Не удалось загрузить пресет: {error}",
+        "palette.Dark": "Темная",
+        "palette.Light": "Светлая",
+        "palette.Gray": "Серая",
+        "palette.CoolWarm": "Холод/тепло",
+        "polarity.All": "Все",
+        "polarity.ON": "ON",
+        "polarity.OFF": "OFF",
+    },
+}
+
+
+def load_app_config():
+    try:
+        with open(APP_CONFIG_PATH, "r", encoding="utf-8") as config_file:
+            data = json.load(config_file)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_app_config(config):
+    try:
+        os.makedirs(os.path.dirname(APP_CONFIG_PATH), exist_ok=True)
+        tmp_path = "%s.tmp" % APP_CONFIG_PATH
+        with open(tmp_path, "w", encoding="utf-8") as config_file:
+            json.dump(config, config_file, ensure_ascii=False, indent=2, sort_keys=True)
+            config_file.write("\n")
+        os.replace(tmp_path, APP_CONFIG_PATH)
+    except OSError:
+        pass
+
+
+def normalize_language_code(value):
+    if not value:
+        return None
+    code = str(value).split(".", 1)[0].strip().replace("_", "-")
+    if not code:
+        return None
+    aliases = {
+        "zh-cn": "zh-Hans",
+        "zh-sg": "zh-Hans",
+        "zh-hans": "zh-Hans",
+        "zh-tw": "zh-Hant",
+        "zh-hk": "zh-Hant",
+        "zh-mo": "zh-Hant",
+        "zh-hant": "zh-Hant",
+    }
+    lowered = code.lower()
+    if lowered in aliases:
+        return aliases[lowered]
+    for language_code, _name in SUPPORTED_LANGUAGES:
+        if lowered == language_code.lower() or lowered.startswith("%s-" % language_code.lower()):
+            return language_code
+    return None
+
+
+def translate_ui(language_code, key, **kwargs):
+    text = UI_TRANSLATIONS.get(language_code, {}).get(key, key)
+    if kwargs:
+        try:
+            return text.format(**kwargs)
+        except (KeyError, IndexError, ValueError):
+            return text
+    return text
 
 
 class EventBatch:
@@ -1115,7 +1994,20 @@ class BiasController:
 
 class EventCameraApp(Gtk.Window):
     def __init__(self):
-        super().__init__(title="KV260 Event Camera")
+        config = load_app_config()
+        requested_language = (
+            os.environ.get("KV260_EVENT_CAMERA_LANG")
+            or os.environ.get("KV260_LANG")
+            or config.get("language")
+            or os.environ.get("LANG")
+        )
+        language_code = normalize_language_code(requested_language) or "en"
+        super().__init__(title=translate_ui(language_code, "KV260 Event Camera"))
+        self.config = config
+        self.language_code = language_code
+        self.localized_widgets = []
+        self.bias_header_labels = []
+        self.bias_empty_label = None
         self.set_default_size(1220, 850)
         self.connect("destroy", self.on_destroy)
         self.renderer = EventFrameRenderer()
@@ -1134,7 +2026,7 @@ class EventCameraApp(Gtk.Window):
 
         self.install_css()
         self.build_ui()
-        self.set_status("Ready. Open Live owns /dev/video0 directly; Close releases it.")
+        self.set_status(self.tr("Ready. Open Live owns /dev/video0 directly; Close releases it."))
         GLib.timeout_add(33, self.refresh_image)
         GLib.timeout_add(500, self.refresh_recording_status)
         self.start_command_server()
@@ -1163,29 +2055,113 @@ class EventCameraApp(Gtk.Window):
         if screen:
             Gtk.StyleContext.add_provider_for_screen(screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
+    def tr(self, key, **kwargs):
+        return translate_ui(self.language_code, key, **kwargs)
+
+    def make_label(self, key, xalign=None):
+        label = Gtk.Label(label=self.tr(key))
+        if xalign is not None:
+            label.set_xalign(xalign)
+        self.localized_widgets.append((label, key))
+        return label
+
+    def localize_widget(self, widget, key):
+        self.localized_widgets.append((widget, key))
+        self.apply_widget_language(widget, key)
+        return widget
+
+    def apply_widget_language(self, widget, key):
+        text = self.tr(key)
+        if isinstance(widget, Gtk.Label):
+            widget.set_text(text)
+        elif isinstance(widget, Gtk.Frame):
+            widget.set_label(text)
+        elif hasattr(widget, "set_label"):
+            widget.set_label(text)
+        elif hasattr(widget, "set_text"):
+            widget.set_text(text)
+
+    def repopulate_combo(self, combo, entries, key_prefix):
+        if not combo:
+            return
+        active_id = combo.get_active_id()
+        if not active_id and entries:
+            active_id = entries[0]
+        combo.remove_all()
+        for entry in entries:
+            combo.append(entry, self.tr("%s.%s" % (key_prefix, entry)))
+        if active_id in entries:
+            combo.set_active_id(active_id)
+        elif entries:
+            combo.set_active(0)
+
+    def apply_language(self):
+        self.set_title(self.tr("KV260 Event Camera"))
+        for widget, key in list(self.localized_widgets):
+            self.apply_widget_language(widget, key)
+        if hasattr(self, "palette_combo"):
+            self.repopulate_combo(self.palette_combo, tuple(PALETTES.keys()), "palette")
+        if hasattr(self, "polarity_combo"):
+            self.repopulate_combo(self.polarity_combo, ("All", "ON", "OFF"), "polarity")
+        if self.bias_header_labels:
+            for label, key in self.bias_header_labels:
+                label.set_text(self.tr(key))
+        if self.bias_empty_label:
+            self.bias_empty_label.set_text(self.tr("No bias controls found on {device}.", device=self.bias_controller.device))
+        self.update_controls()
+
+    def on_language_changed(self, _combo):
+        code = self.language_combo.get_active_id() if hasattr(self, "language_combo") else None
+        normalized = normalize_language_code(code)
+        if not normalized or normalized == self.language_code:
+            return
+        self.language_code = normalized
+        self.config["language"] = normalized
+        save_app_config(self.config)
+        self.apply_language()
+
     def build_ui(self):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         root.set_border_width(10)
         self.add(root)
 
-        title = Gtk.Label(label="KV260 Event Camera")
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        root.pack_start(header, False, False, 0)
+
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        title_box.set_hexpand(True)
+        header.pack_start(title_box, True, True, 0)
+
+        title = self.make_label("KV260 Event Camera", xalign=0)
         title.set_xalign(0)
         title.get_style_context().add_class("title")
-        root.pack_start(title, False, False, 0)
+        title_box.pack_start(title, False, False, 0)
 
-        subtitle = Gtk.Label(label="Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.")
+        subtitle = self.make_label("Live PSE2 preview, raw recording, playback, display tuning, and IMX636 bias controls.", xalign=0)
         subtitle.set_xalign(0)
         subtitle.get_style_context().add_class("subtitle")
-        root.pack_start(subtitle, False, False, 0)
+        title_box.pack_start(subtitle, False, False, 0)
+
+        language_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        language_box.set_halign(Gtk.Align.END)
+        language_box.set_valign(Gtk.Align.START)
+        header.pack_end(language_box, False, False, 0)
+        language_box.pack_start(self.make_label("Language"), False, False, 0)
+        self.language_combo = Gtk.ComboBoxText()
+        for code, name in SUPPORTED_LANGUAGES:
+            self.language_combo.append(code, name)
+        self.language_combo.set_active_id(self.language_code)
+        self.language_combo.connect("changed", self.on_language_changed)
+        language_box.pack_start(self.language_combo, False, False, 0)
 
         self.notebook = Gtk.Notebook()
         self.notebook.set_size_request(-1, 258)
         root.pack_start(self.notebook, False, False, 0)
-        self.notebook.append_page(self.build_camera_tab(), Gtk.Label(label="Camera"))
-        self.notebook.append_page(self.build_display_tab(), Gtk.Label(label="Display"))
-        self.notebook.append_page(self.build_bias_tab(), Gtk.Label(label="Biases"))
+        self.notebook.append_page(self.build_camera_tab(), self.make_label("Camera"))
+        self.notebook.append_page(self.build_display_tab(), self.make_label("Display"))
+        self.notebook.append_page(self.build_bias_tab(), self.make_label("Biases"))
 
-        preview_frame = Gtk.Frame(label="Event Preview")
+        preview_frame = self.localize_widget(Gtk.Frame(), "Event Preview")
         preview_frame.get_style_context().add_class("section")
         self.image = Gtk.Image()
         self.image.set_size_request(VIEW_W, VIEW_H)
@@ -1199,10 +2175,11 @@ class EventCameraApp(Gtk.Window):
         self.status.get_style_context().add_class("status")
         root.pack_start(self.status, False, False, 0)
 
-    def make_button(self, label, style, callback):
-        button = Gtk.Button(label=label)
+    def make_button(self, label_key, style, callback):
+        button = Gtk.Button(label=self.tr(label_key))
         button.connect("clicked", callback)
         button.get_style_context().add_class(style)
+        self.localized_widgets.append((button, label_key))
         return button
 
     def build_camera_tab(self):
@@ -1234,7 +2211,7 @@ class EventCameraApp(Gtk.Window):
         grid = Gtk.Grid(column_spacing=8, row_spacing=6)
         box.pack_start(grid, False, False, 0)
 
-        grid.attach(Gtk.Label(label="Record folder"), 0, 0, 1, 1)
+        grid.attach(self.make_label("Record folder"), 0, 0, 1, 1)
         self.folder_entry = Gtk.Entry()
         self.folder_entry.set_text(DEFAULT_RECORD_DIR)
         self.folder_entry.set_hexpand(True)
@@ -1242,27 +2219,28 @@ class EventCameraApp(Gtk.Window):
         browse = self.make_button("Browse", "neutral", self.on_browse_folder)
         grid.attach(browse, 6, 0, 1, 1)
 
-        grid.attach(Gtk.Label(label="File name"), 0, 1, 1, 1)
+        grid.attach(self.make_label("File name"), 0, 1, 1, 1)
         self.file_entry = Gtk.Entry()
         self.file_entry.set_text(self.default_filename())
         self.file_entry.set_hexpand(True)
         grid.attach(self.file_entry, 1, 1, 3, 1)
 
-        grid.attach(Gtk.Label(label="Video node"), 4, 1, 1, 1)
+        grid.attach(self.make_label("Video node"), 4, 1, 1, 1)
         self.device_entry = Gtk.Entry()
         self.device_entry.set_text(DEFAULT_DEVICE)
         grid.attach(self.device_entry, 5, 1, 2, 1)
 
-        self.mode_label = Gtk.Label(label="Mode: Idle")
+        self.mode_label = Gtk.Label(label=self.tr("Mode: {mode}", mode=self.tr("mode.Idle")))
         self.mode_label.set_xalign(0)
         box.pack_start(self.mode_label, False, False, 0)
 
         record_status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.priority_check = Gtk.CheckButton(label="Recording Priority")
+        self.priority_check = Gtk.CheckButton(label=self.tr("Recording Priority"))
+        self.localized_widgets.append((self.priority_check, "Recording Priority"))
         self.priority_check.set_active(True)
         self.priority_check.connect("toggled", self.on_recording_priority_changed)
         record_status_row.pack_start(self.priority_check, False, False, 0)
-        self.record_status_label = Gtk.Label(label="Recording: idle")
+        self.record_status_label = Gtk.Label(label=self.tr("Recording: idle"))
         self.record_status_label.set_xalign(0)
         self.record_status_label.set_hexpand(True)
         self.record_status_label.set_line_wrap(True)
@@ -1277,41 +2255,39 @@ class EventCameraApp(Gtk.Window):
         grid = Gtk.Grid(column_spacing=10, row_spacing=8)
         grid.set_border_width(8)
 
-        grid.attach(Gtk.Label(label="Playback accumulation ms"), 0, 0, 1, 1)
+        grid.attach(self.make_label("Playback accumulation ms"), 0, 0, 1, 1)
         self.accum_spin = Gtk.SpinButton.new_with_range(1, 200, 1)
         self.accum_spin.set_value(10)
         self.accum_spin.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.accum_spin, 1, 0, 1, 1)
 
-        grid.attach(Gtk.Label(label="FPS"), 2, 0, 1, 1)
+        grid.attach(self.make_label("FPS"), 2, 0, 1, 1)
         self.fps_spin = Gtk.SpinButton.new_with_range(5, 60, 1)
         self.fps_spin.set_value(30)
         self.fps_spin.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.fps_spin, 3, 0, 1, 1)
 
-        grid.attach(Gtk.Label(label="Palette"), 4, 0, 1, 1)
+        grid.attach(self.make_label("Palette"), 4, 0, 1, 1)
         self.palette_combo = Gtk.ComboBoxText()
-        for name in PALETTES:
-            self.palette_combo.append_text(name)
-        self.palette_combo.set_active(0)
+        self.repopulate_combo(self.palette_combo, tuple(PALETTES.keys()), "palette")
+        self.palette_combo.set_active_id("Dark")
         self.palette_combo.connect("changed", self.on_render_setting_changed)
         grid.attach(self.palette_combo, 5, 0, 1, 1)
 
-        grid.attach(Gtk.Label(label="Polarity"), 0, 1, 1, 1)
+        grid.attach(self.make_label("Polarity"), 0, 1, 1, 1)
         self.polarity_combo = Gtk.ComboBoxText()
-        for name in ("All", "ON", "OFF"):
-            self.polarity_combo.append_text(name)
-        self.polarity_combo.set_active(0)
+        self.repopulate_combo(self.polarity_combo, ("All", "ON", "OFF"), "polarity")
+        self.polarity_combo.set_active_id("All")
         self.polarity_combo.connect("changed", self.on_render_setting_changed)
         grid.attach(self.polarity_combo, 1, 1, 1, 1)
 
-        grid.attach(Gtk.Label(label="Point radius"), 2, 1, 1, 1)
+        grid.attach(self.make_label("Point radius"), 2, 1, 1, 1)
         self.radius_spin = Gtk.SpinButton.new_with_range(0, 4, 1)
         self.radius_spin.set_value(1)
         self.radius_spin.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.radius_spin, 3, 1, 1, 1)
 
-        grid.attach(Gtk.Label(label="Event trail"), 4, 1, 1, 1)
+        grid.attach(self.make_label("Event trail"), 4, 1, 1, 1)
         self.trail_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.50, 0.995, 0.005)
         self.trail_scale.set_digits(3)
         self.trail_scale.set_value(0.82)
@@ -1319,13 +2295,14 @@ class EventCameraApp(Gtk.Window):
         self.trail_scale.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.trail_scale, 5, 1, 2, 1)
 
-        self.osd_check = Gtk.CheckButton(label="Playback OSD overlay")
+        self.osd_check = Gtk.CheckButton(label=self.tr("Playback OSD overlay"))
+        self.localized_widgets.append((self.osd_check, "Playback OSD overlay"))
         self.osd_check.set_active(True)
         self.osd_check.connect("toggled", self.on_render_setting_changed)
         grid.attach(self.osd_check, 0, 2, 2, 1)
 
-        hint = Gtk.Label(
-            label="Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance."
+        hint = self.make_label(
+            "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance."
         )
         hint.set_xalign(0)
         hint.set_line_wrap(True)
@@ -1354,7 +2331,7 @@ class EventCameraApp(Gtk.Window):
         scroller.add(self.bias_grid)
         box.pack_start(scroller, True, True, 0)
 
-        self.bias_note = Gtk.Label(label="Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.")
+        self.bias_note = self.make_label("Bias controls are read from /dev/v4l-subdev3. Refresh after camera stack reloads.")
         self.bias_note.set_xalign(0)
         self.bias_note.set_line_wrap(True)
         box.pack_start(self.bias_note, False, False, 0)
@@ -1365,7 +2342,11 @@ class EventCameraApp(Gtk.Window):
         return "event_%s.pse2.raw" % datetime.now().strftime("%Y%m%d_%H%M%S")
 
     def set_status(self, message):
-        print(str(message), flush=True)
+        try:
+            print(str(message), flush=True)
+        except UnicodeEncodeError:
+            safe_message = str(message).encode("ascii", "backslashreplace").decode("ascii")
+            print(safe_message, flush=True)
         GLib.idle_add(self._set_status_main, str(message))
 
     def _set_status_main(self, message):
@@ -1422,25 +2403,23 @@ class EventCameraApp(Gtk.Window):
     def refresh_recording_status(self):
         if not hasattr(self, "record_status_label"):
             return True
-        text = "Recording: idle"
+        text = self.tr("Recording: idle")
         if isinstance(self.source, V4L2EventStream) and self.source.is_recording():
             stats = self.source.recording_snapshot()
             if stats:
                 mb = stats["bytes_written"] / (1024.0 * 1024.0)
-                text = (
-                    "Recording: %.1f MB, %s buffers, queue %s/%s, drops %s"
-                    % (
-                        mb,
-                        stats["buffers_written"],
-                        stats["pending_buffers"],
-                        stats["queue_size"],
-                        stats["dropped_buffers"],
-                    )
+                text = self.tr(
+                    "Recording: {mb:.1f} MB, {buffers} buffers, queue {pending}/{queue}, drops {drops}",
+                    mb=mb,
+                    buffers=stats["buffers_written"],
+                    pending=stats["pending_buffers"],
+                    queue=stats["queue_size"],
+                    drops=stats["dropped_buffers"],
                 )
                 if stats["preview_skipped_buffers"]:
-                    text += ", preview skipped %s" % stats["preview_skipped_buffers"]
+                    text += self.tr(", preview skipped {count}", count=stats["preview_skipped_buffers"])
                 if stats["write_error"]:
-                    text += ", write error"
+                    text += self.tr(", write error")
         self.record_status_label.set_text(text)
         return True
 
@@ -1452,9 +2431,9 @@ class EventCameraApp(Gtk.Window):
         self.record_button.set_sensitive(live)
         self.open_recording_button.set_sensitive(True)
         self.pause_button.set_sensitive(playback)
-        self.pause_button.set_label("Resume" if self.playback_paused else "Pause")
-        self.record_button.set_label("Stop Recording" if self.recording else "Start Recording")
-        self.mode_label.set_text("Mode: %s" % self.source_mode)
+        self.pause_button.set_label(self.tr("Resume") if self.playback_paused else self.tr("Pause"))
+        self.record_button.set_label(self.tr("Stop Recording") if self.recording else self.tr("Start Recording"))
+        self.mode_label.set_text(self.tr("Mode: {mode}", mode=self.tr("mode.%s" % self.source_mode)))
         self.refresh_recording_status()
 
     def output_path(self):
@@ -1469,7 +2448,7 @@ class EventCameraApp(Gtk.Window):
 
     def on_browse_folder(self, _button):
         dialog = Gtk.FileChooserDialog(
-            title="Select recording folder",
+            title=self.tr("Select recording folder"),
             parent=self,
             action=Gtk.FileChooserAction.SELECT_FOLDER,
             buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK),
@@ -1481,14 +2460,14 @@ class EventCameraApp(Gtk.Window):
 
     def on_open_recording(self, _button):
         dialog = Gtk.FileChooserDialog(
-            title="Open PSE2/EVT2.1 recording",
+            title=self.tr("Open PSE2/EVT2.1 recording"),
             parent=self,
             action=Gtk.FileChooserAction.OPEN,
             buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK),
         )
         dialog.set_current_folder(os.path.abspath(os.path.expanduser(self.folder_entry.get_text() or DEFAULT_RECORD_DIR)))
         filter_raw = Gtk.FileFilter()
-        filter_raw.set_name("PSE2/RAW recordings")
+        filter_raw.set_name(self.tr("PSE2/RAW recordings"))
         filter_raw.add_pattern("*.raw")
         filter_raw.add_pattern("*.pse2")
         dialog.add_filter(filter_raw)
@@ -1513,8 +2492,10 @@ class EventCameraApp(Gtk.Window):
         return False
 
     def on_render_setting_changed(self, _widget):
-        palette = self.palette_combo.get_active_text() if hasattr(self, "palette_combo") else "Dark"
-        polarity = self.polarity_combo.get_active_text() if hasattr(self, "polarity_combo") else "All"
+        palette = self.palette_combo.get_active_id() if hasattr(self, "palette_combo") else "Dark"
+        polarity = self.polarity_combo.get_active_id() if hasattr(self, "polarity_combo") else "All"
+        palette = palette or "Dark"
+        polarity = polarity or "All"
         self.renderer.configure(
             accumulation_ms=self.accum_spin.get_value() if hasattr(self, "accum_spin") else 10,
             fps=self.fps_spin.get_value() if hasattr(self, "fps_spin") else 30,
@@ -1534,7 +2515,7 @@ class EventCameraApp(Gtk.Window):
 
     def on_open_camera(self, _button):
         if self.source:
-            self.set_status("A source is already open. Close it first.")
+            self.set_status(self.tr("A source is already open. Close it first."))
             return
         self.stop_native_viewer()
         device = self.device_entry.get_text().strip() or DEFAULT_DEVICE
@@ -1559,7 +2540,7 @@ class EventCameraApp(Gtk.Window):
 
     def on_record(self, _button):
         if not isinstance(self.source, V4L2EventStream):
-            self.set_status("Open Live before recording.")
+            self.set_status(self.tr("Open Live before recording."))
             return
         if self.recording:
             self.source.stop_recording()
@@ -1575,7 +2556,7 @@ class EventCameraApp(Gtk.Window):
             self.recording = True
             self.update_controls()
         except Exception as exc:
-            self.set_status("Could not start recording: %s" % exc)
+            self.set_status(self.tr("Could not start recording: {error}", error=exc))
 
     def on_pause_playback(self, _button):
         if not isinstance(self.source, PSE2RecordingPlayer):
@@ -1586,7 +2567,7 @@ class EventCameraApp(Gtk.Window):
 
     def on_recover(self, _button):
         self.close_stream()
-        self.set_status("Recovering camera stack...")
+        self.set_status(self.tr("Recovering camera stack..."))
 
         def worker():
             cmd = [os.path.join(HERE, "kv260-launch-desktop-viewer.sh"), "--recover"]
@@ -1594,7 +2575,7 @@ class EventCameraApp(Gtk.Window):
             env.setdefault("DISPLAY", ":0")
             subprocess.run(cmd, cwd=PROJECT_DIR, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run([os.path.join(HERE, "kv260-event-visual-gui-local.sh"), "--stop", "--force"], cwd=PROJECT_DIR)
-            self.set_status("Recovery complete. Click Open Live.")
+            self.set_status(self.tr("Recovery complete. Click Open Live."))
             self.refresh_bias_controls_async()
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1613,7 +2594,7 @@ class EventCameraApp(Gtk.Window):
                 controls = self.bias_controller.read_controls()
                 GLib.idle_add(self.build_bias_controls, controls)
             except Exception as exc:
-                self.set_status("Could not read bias controls: %s" % exc)
+                self.set_status(self.tr("Could not read bias controls: {error}", error=exc))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1622,11 +2603,14 @@ class EventCameraApp(Gtk.Window):
             self.bias_grid.remove(child)
         self.bias_widgets = {}
         self.bias_controls = controls
+        self.bias_header_labels = []
+        self.bias_empty_label = None
         headers = ("Bias", "Value", "Range", "Default", "Purpose")
         for col, header in enumerate(headers):
-            label = Gtk.Label(label=header)
+            label = Gtk.Label(label=self.tr(header))
             label.set_xalign(0)
             self.bias_grid.attach(label, col, 0, 1, 1)
+            self.bias_header_labels.append((label, header))
         row = 1
         for name in COMMON_BIASES:
             info = controls.get(name)
@@ -1649,9 +2633,10 @@ class EventCameraApp(Gtk.Window):
             self.bias_widgets[name] = {"scale": scale, "spin": spin, "info": info}
             row += 1
         if not self.bias_widgets:
-            self.bias_grid.attach(Gtk.Label(label="No bias controls found on %s." % self.bias_controller.device), 0, 1, 5, 1)
+            self.bias_empty_label = Gtk.Label(label=self.tr("No bias controls found on {device}.", device=self.bias_controller.device))
+            self.bias_grid.attach(self.bias_empty_label, 0, 1, 5, 1)
         self.bias_grid.show_all()
-        self.set_status("Bias controls refreshed from %s." % self.bias_controller.device)
+        self.set_status(self.tr("Bias controls refreshed from {device}.", device=self.bias_controller.device))
         return False
 
     def on_refresh_biases(self, _button):
@@ -1659,7 +2644,7 @@ class EventCameraApp(Gtk.Window):
 
     def on_apply_biases(self, _button):
         values = {name: int(widget["spin"].get_value()) for name, widget in self.bias_widgets.items()}
-        self.apply_bias_values(values, "Biases applied")
+        self.apply_bias_values(values, self.tr("Biases applied"))
 
     def apply_bias_values(self, values, success_message):
         def worker():
@@ -1669,18 +2654,18 @@ class EventCameraApp(Gtk.Window):
                 self.set_status("%s: %s" % (success_message, ", ".join("%s=%s" % item for item in values.items())))
                 self.refresh_bias_controls_async()
             except Exception as exc:
-                self.set_status("Bias update failed: %s" % exc)
+                self.set_status(self.tr("Bias update failed: {error}", error=exc))
 
         threading.Thread(target=worker, daemon=True).start()
 
     def on_reset_biases(self, _button):
         values = {name: widget["info"]["default"] for name, widget in self.bias_widgets.items()}
-        self.apply_bias_values(values, "Bias defaults restored")
+        self.apply_bias_values(values, self.tr("Bias defaults restored"))
 
     def on_save_bias_preset(self, _button):
         path = os.path.join(os.path.abspath(os.path.expanduser(self.folder_entry.get_text() or DEFAULT_RECORD_DIR)), "biases_%s.json" % datetime.now().strftime("%Y%m%d_%H%M%S"))
         dialog = Gtk.FileChooserDialog(
-            title="Save bias preset",
+            title=self.tr("Save bias preset"),
             parent=self,
             action=Gtk.FileChooserAction.SAVE,
             buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK),
@@ -1698,21 +2683,21 @@ class EventCameraApp(Gtk.Window):
                 with open(path, "w", encoding="utf-8") as preset:
                     json.dump(data, preset, indent=2)
                     preset.write("\n")
-                self.set_status("Bias preset saved: %s" % path)
+                self.set_status(self.tr("Bias preset saved: {path}", path=path))
             except Exception as exc:
-                self.set_status("Could not save bias preset: %s" % exc)
+                self.set_status(self.tr("Could not save bias preset: {error}", error=exc))
         dialog.destroy()
 
     def on_load_bias_preset(self, _button):
         dialog = Gtk.FileChooserDialog(
-            title="Load bias preset",
+            title=self.tr("Load bias preset"),
             parent=self,
             action=Gtk.FileChooserAction.OPEN,
             buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK),
         )
         dialog.set_current_folder(os.path.abspath(os.path.expanduser(self.folder_entry.get_text() or DEFAULT_RECORD_DIR)))
         filter_json = Gtk.FileFilter()
-        filter_json.set_name("JSON presets")
+        filter_json.set_name(self.tr("JSON presets"))
         filter_json.add_pattern("*.json")
         dialog.add_filter(filter_json)
         if dialog.run() == Gtk.ResponseType.OK:
@@ -1725,9 +2710,9 @@ class EventCameraApp(Gtk.Window):
                     widget = self.bias_widgets.get(name)
                     if widget:
                         widget["spin"].set_value(int(value))
-                self.apply_bias_values({name: int(value) for name, value in values.items() if name in self.bias_widgets}, "Bias preset loaded")
+                self.apply_bias_values({name: int(value) for name, value in values.items() if name in self.bias_widgets}, self.tr("Bias preset loaded"))
             except Exception as exc:
-                self.set_status("Could not load bias preset: %s" % exc)
+                self.set_status(self.tr("Could not load bias preset: {error}", error=exc))
         dialog.destroy()
 
     def on_destroy(self, _widget):

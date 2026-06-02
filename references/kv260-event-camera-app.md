@@ -123,6 +123,46 @@ The tab can refresh live values, apply the edited values, reset defaults, and sa
 
 The app auto-opens the camera when launched from the desktop.
 
+## Language Support
+
+The board custom viewer has a language selector in the header.
+
+Supported languages match the README and Windows Control Center language set:
+
+```text
+English
+Arabic
+Spanish
+French
+Japanese
+Korean
+Vietnamese
+Simplified Chinese
+Traditional Chinese
+German
+Russian
+```
+
+The selected board-viewer language is saved here:
+
+```text
+/home/petalinux/.config/kv260-event-camera-app.json
+```
+
+Launch-time override:
+
+```sh
+KV260_EVENT_CAMERA_LANG=zh-Hans DISPLAY=:0 ./scripts/kv260-event-camera-app.sh
+```
+
+Useful language codes:
+
+```text
+en ar es fr ja ko vi zh-Hans zh-Hant de ru
+```
+
+The launcher keeps `LANG=C` for this minimal PetaLinux image, but it now sets `PYTHONIOENCODING=utf-8` and the app has safe Unicode status logging. This avoids crashes when non-ASCII labels are selected while the board locale remains minimal.
+
 ## Recording Format
 
 Default output folder:
@@ -214,6 +254,8 @@ bounded writer robustness: default queue recording wrote 3990184 bytes across 32
 small queue robustness: KV260_RECORD_QUEUE_BUFFERS=8 wrote 2379888 bytes across 231 buffers with drops=0
 recording preview decimation: non-recording decoded 174/174 buffers; recording decoded 99 buffers, skipped 70 preview buffers, wrote 13695824 bytes with drops=0
 recording status and priority mode: GUI shows MB/buffer/queue/drop counters; priority on decimates preview during recording; priority off decodes every payload after the recorder enqueue
+multilingual import test: 11 language codes found; zh-Hans, zh-Hant, ar, and en fallback verified
+multilingual GUI smoke: DISPLAY=:0, KV260_EVENT_CAMERA_LANG=zh-Hans, auto-open disabled, exited cleanly through the local command socket
 ```
 
 Direct stream test:

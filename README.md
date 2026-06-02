@@ -45,6 +45,7 @@ The center of this repo is a custom KV260 event camera application built for the
 | Playback | Opens custom `.pse2.raw` recordings directly in the same GUI |
 | Display tuning | Adjusts accumulation time, FPS, palette, ON/OFF polarity, dot size, and event trail |
 | Bias tuning | Reads and applies common IMX636 V4L2 bias controls from the sensor subdevice |
+| Multilingual UI | Supports the same 11-language set as the README and Windows Control Center |
 | Metadata | Writes a JSON sidecar with capture information |
 | Desktop launcher | Adds a simple menu item for the board desktop |
 | Recovery scripts | Clears stale viewer and camera state when the board gets stuck |
@@ -70,6 +71,8 @@ Windows also has a single `KV260 Control Center` launcher for the camera, common
 | `Applications` tab | Opens PCManFM, terminals, L3afpad, Appearance, touchscreen calibration, preferred apps, desktop preferences, and native Metavision through SSH X11 |
 | `Files` tab | Two-pane Windows/KV260 file browser with multi-select upload, download, and drag/drop SCP transfers |
 | `Open Jupyter Notebook` | Starts Jupyter on the KV260, opens an SSH tunnel, and opens the Windows browser |
+
+Both the board viewer and Windows Control Center support English, Arabic, Spanish, French, Japanese, Korean, Vietnamese, Simplified Chinese, Traditional Chinese, German, and Russian. The board viewer saves its language preference in `/home/petalinux/.config/kv260-event-camera-app.json`; the Windows Control Center saves it in `%APPDATA%\KV260ControlCenter\settings.json`.
 
 Main files:
 

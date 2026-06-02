@@ -41,6 +41,7 @@ export USER="${TARGET_USER}"
 export LOGNAME="${TARGET_USER}"
 export LANG=C
 export LC_ALL=C
+export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 export NO_AT_BRIDGE=1
 export KV260_EVENT_CAMERA_APP_SOCKET="${APP_SOCKET}"
 export KV260_EVENT_CAMERA_APP_LOCK_PATH="${APP_LOCK}"
@@ -86,7 +87,7 @@ if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
   if [ "${FOREGROUND}" = "1" ]; then
     exec runuser -u "${TARGET_USER}" -m -- env \
       HOME="${HOME}" USER="${USER}" LOGNAME="${LOGNAME}" DISPLAY="${DISPLAY}" XAUTHORITY="${XAUTHORITY}" \
-      LANG="${LANG}" LC_ALL="${LC_ALL}" NO_AT_BRIDGE="${NO_AT_BRIDGE}" \
+      LANG="${LANG}" LC_ALL="${LC_ALL}" PYTHONIOENCODING="${PYTHONIOENCODING}" NO_AT_BRIDGE="${NO_AT_BRIDGE}" \
       KV260_EVENT_CAMERA_APP_SOCKET="${APP_SOCKET}" KV260_EVENT_CAMERA_APP_LOCK_PATH="${APP_LOCK}" \
       KV260_EVENT_CAMERA_APP_LOG_FILE="${LOG_FILE}" \
       sh -c 'exec "$@" >> "${KV260_EVENT_CAMERA_APP_LOG_FILE}" 2>&1' sh \
@@ -95,7 +96,7 @@ if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
 
   setsid -f runuser -u "${TARGET_USER}" -m -- env \
     HOME="${HOME}" USER="${USER}" LOGNAME="${LOGNAME}" DISPLAY="${DISPLAY}" XAUTHORITY="${XAUTHORITY}" \
-    LANG="${LANG}" LC_ALL="${LC_ALL}" NO_AT_BRIDGE="${NO_AT_BRIDGE}" \
+    LANG="${LANG}" LC_ALL="${LC_ALL}" PYTHONIOENCODING="${PYTHONIOENCODING}" NO_AT_BRIDGE="${NO_AT_BRIDGE}" \
     KV260_EVENT_CAMERA_APP_SOCKET="${APP_SOCKET}" KV260_EVENT_CAMERA_APP_LOCK_PATH="${APP_LOCK}" \
     KV260_EVENT_CAMERA_APP_LOG_FILE="${LOG_FILE}" \
     sh -c 'exec "$@" >> "${KV260_EVENT_CAMERA_APP_LOG_FILE}" 2>&1' sh \
