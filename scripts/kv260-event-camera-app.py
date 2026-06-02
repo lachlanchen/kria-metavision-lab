@@ -53,11 +53,14 @@ APP_LOCK_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_LOCK_PATH", "/tmp/kv260-e
 APP_SOCKET_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_SOCKET", "/tmp/kv260-event-camera-app.sock")
 DEFAULT_RECORD_QUEUE_BUFFERS = int(os.environ.get("KV260_RECORD_QUEUE_BUFFERS", "256"))
 DEFAULT_LIVE_TRAIL = float(os.environ.get("KV260_EVENT_LIVE_TRAIL", "0.94"))
+MAX_LIVE_PREVIEW_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_PREVIEW_FPS", "8"))
+MAX_PREVIEW_CD_WORDS = int(os.environ.get("KV260_EVENT_PREVIEW_CD_WORDS", "4096"))
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
 )
 BRAND_CREDIT = "Powered by AgInTi Flow - created by LazyingArt LLC - flow.lazying.art"
+POPCOUNT8 = np.array([bin(value).count("1") for value in range(256)], dtype=np.uint8)
 
 
 _IOC_NRBITS = 8
@@ -1500,7 +1503,7 @@ class V4L2EventStream:
         self.display = np.zeros((VIEW_H, VIEW_W, 3), dtype=np.uint8)
         self.point_radius = 1
         self.decay = DEFAULT_LIVE_TRAIL
-        self.frame_interval = 0.033
+        self.frame_interval = 1.0 / max(1.0, MAX_LIVE_PREVIEW_FPS)
         self.polarity_mode = "All"
         self.bg_color = PALETTES["Dark"]["bg"]
         self.on_color = (60, 210, 130)
@@ -1521,7 +1524,9 @@ class V4L2EventStream:
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
         self.decay = max(0.0, min(0.995, float(settings.get("trail", self.decay))))
-        fps = max(1, min(90, int(settings.get("fps", round(1.0 / self.frame_interval)))))
+        fps = max(1.0, min(90.0, float(settings.get("fps", round(1.0 / self.frame_interval)))))
+        if MAX_LIVE_PREVIEW_FPS > 0:
+            fps = min(fps, MAX_LIVE_PREVIEW_FPS)
         self.frame_interval = 1.0 / fps
         polarity = settings.get("polarity", self.polarity_mode)
         if polarity in ("All", "ON", "OFF"):
@@ -1691,27 +1696,25 @@ class V4L2EventStream:
 
                 now = time.monotonic()
                 frame_due = now - last_frame_time > self.frame_interval
-                recording_enabled = False
                 recording_queued = False
                 with self.record_lock:
                     if self.record_writer:
-                        recording_enabled = True
                         recording_queued = self.record_writer.enqueue(payload)
                         if recording_queued:
                             self.record_bytes += len(payload)
 
                 events = 0
-                decode_preview = (not recording_enabled) or (not self.recording_priority) or frame_due
-                if decode_preview:
-                    try:
-                        events = self._decode_and_draw(payload)
+                draw_preview = frame_due
+                try:
+                    events = self._decode_and_draw(payload, draw=draw_preview)
+                    if draw_preview:
                         self.preview_decoded_buffers += 1
-                    except Exception as exc:
-                        self.preview_errors += 1
-                        if self.preview_errors <= 3:
-                            self.on_status("Preview decode failed; recording continues: %s" % exc)
-                else:
-                    self.preview_skipped_buffers += 1
+                    else:
+                        self.preview_skipped_buffers += 1
+                except Exception as exc:
+                    self.preview_errors += 1
+                    if self.preview_errors <= 3:
+                        self.on_status("Preview decode failed; recording continues: %s" % exc)
 
                 self.total_events += events
                 if recording_queued:
@@ -1754,7 +1757,7 @@ class V4L2EventStream:
             + bg * (1.0 - self.decay)
         ).astype(np.uint8)
 
-    def _decode_and_draw(self, payload):
+    def _decode_and_draw(self, payload, draw=True):
         usable = len(payload) - (len(payload) % 8)
         if usable <= 0:
             return 0
@@ -1783,6 +1786,16 @@ class V4L2EventStream:
         y_base = y_base[valid]
         vx = vx[valid]
         cd_type = cd_type[valid]
+        event_count = int(POPCOUNT8[vx.view(np.uint8)].sum(dtype=np.uint64))
+        if not draw or event_count <= 0:
+            return event_count
+
+        if vx.size > MAX_PREVIEW_CD_WORDS:
+            step = int(np.ceil(float(vx.size) / float(MAX_PREVIEW_CD_WORDS)))
+            x_base = x_base[::step]
+            y_base = y_base[::step]
+            vx = vx[::step]
+            cd_type = cd_type[::step]
 
         xs = []
         ys = []
@@ -1832,7 +1845,7 @@ class V4L2EventStream:
                         self.display[yy[off], xx[off]] = self.off_color
                     if np.any(on):
                         self.display[yy[on], xx[on]] = self.on_color
-        return int(len(x))
+        return event_count
 
 
 class PSE2RecordingPlayer:
@@ -2283,7 +2296,7 @@ class EventCameraApp(Gtk.Window):
 
         grid.attach(self.make_label("FPS"), 2, 0, 1, 1)
         self.fps_spin = Gtk.SpinButton.new_with_range(5, 60, 1)
-        self.fps_spin.set_value(30)
+        self.fps_spin.set_value(min(8, max(5, int(MAX_LIVE_PREVIEW_FPS))))
         self.fps_spin.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.fps_spin, 3, 0, 1, 1)
 
