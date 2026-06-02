@@ -53,7 +53,8 @@ APP_LOCK_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_LOCK_PATH", "/tmp/kv260-e
 APP_SOCKET_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_SOCKET", "/tmp/kv260-event-camera-app.sock")
 DEFAULT_RECORD_QUEUE_BUFFERS = int(os.environ.get("KV260_RECORD_QUEUE_BUFFERS", "256"))
 DEFAULT_LIVE_TRAIL = float(os.environ.get("KV260_EVENT_LIVE_TRAIL", "0.94"))
-MAX_LIVE_PREVIEW_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_PREVIEW_FPS", "8"))
+MAX_LIVE_DRAW_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_DRAW_FPS", os.environ.get("KV260_EVENT_MAX_LIVE_PREVIEW_FPS", "8")))
+MAX_LIVE_DISPLAY_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_DISPLAY_FPS", "24"))
 MAX_PREVIEW_CD_WORDS = int(os.environ.get("KV260_EVENT_PREVIEW_CD_WORDS", "4096"))
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
@@ -1498,12 +1499,15 @@ class V4L2EventStream:
         self.on_status = on_status
         self.stop_event = threading.Event()
         self.thread = None
+        self.frame_thread = None
         self.fd = None
         self.buffers = []
         self.display = np.zeros((VIEW_H, VIEW_W, 3), dtype=np.uint8)
+        self.display_lock = threading.Lock()
         self.point_radius = 1
         self.decay = DEFAULT_LIVE_TRAIL
-        self.frame_interval = 1.0 / max(1.0, MAX_LIVE_PREVIEW_FPS)
+        self.draw_interval = 1.0 / max(1.0, MAX_LIVE_DRAW_FPS)
+        self.frame_interval = 1.0 / max(1.0, MAX_LIVE_DISPLAY_FPS)
         self.polarity_mode = "All"
         self.bg_color = PALETTES["Dark"]["bg"]
         self.on_color = (60, 210, 130)
@@ -1524,10 +1528,11 @@ class V4L2EventStream:
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
         self.decay = max(0.0, min(0.995, float(settings.get("trail", self.decay))))
-        fps = max(1.0, min(90.0, float(settings.get("fps", round(1.0 / self.frame_interval)))))
-        if MAX_LIVE_PREVIEW_FPS > 0:
-            fps = min(fps, MAX_LIVE_PREVIEW_FPS)
-        self.frame_interval = 1.0 / fps
+        requested_fps = max(1.0, min(90.0, float(settings.get("fps", round(1.0 / self.frame_interval)))))
+        display_fps = min(requested_fps, MAX_LIVE_DISPLAY_FPS) if MAX_LIVE_DISPLAY_FPS > 0 else requested_fps
+        draw_fps = min(display_fps, MAX_LIVE_DRAW_FPS) if MAX_LIVE_DRAW_FPS > 0 else display_fps
+        self.frame_interval = 1.0 / max(1.0, display_fps)
+        self.draw_interval = 1.0 / max(1.0, draw_fps)
         polarity = settings.get("polarity", self.polarity_mode)
         if polarity in ("All", "ON", "OFF"):
             self.polarity_mode = polarity
@@ -1546,12 +1551,16 @@ class V4L2EventStream:
         self.preview_skipped_buffers = 0
         self._reset_display()
         self.thread = threading.Thread(target=self._run, daemon=True)
+        self.frame_thread = threading.Thread(target=self._run_frames, daemon=True)
         self.thread.start()
+        self.frame_thread.start()
 
     def stop(self):
         self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=3.0)
+        if self.frame_thread:
+            self.frame_thread.join(timeout=1.0)
         self.stop_recording()
 
     def is_recording(self):
@@ -1671,7 +1680,7 @@ class V4L2EventStream:
         try:
             self._open_device()
             self.on_status("Live camera open: %s (%sx%s PSE2)" % (self.device, WIDTH, HEIGHT))
-            last_frame_time = 0.0
+            last_draw_time = 0.0
             last_rate_time = time.monotonic()
             last_rate_events = 0
             while not self.stop_event.is_set():
@@ -1695,7 +1704,7 @@ class V4L2EventStream:
                 self.total_buffers += 1
 
                 now = time.monotonic()
-                frame_due = now - last_frame_time > self.frame_interval
+                draw_due = now - last_draw_time > self.draw_interval
                 recording_queued = False
                 with self.record_lock:
                     if self.record_writer:
@@ -1704,10 +1713,11 @@ class V4L2EventStream:
                             self.record_bytes += len(payload)
 
                 events = 0
-                draw_preview = frame_due
+                draw_preview = draw_due
                 try:
                     events = self._decode_and_draw(payload, draw=draw_preview)
                     if draw_preview:
+                        last_draw_time = now
                         self.preview_decoded_buffers += 1
                     else:
                         self.preview_skipped_buffers += 1
@@ -1720,11 +1730,6 @@ class V4L2EventStream:
                 if recording_queued:
                     with self.record_lock:
                         self.record_events += events
-
-                if frame_due:
-                    last_frame_time = now
-                    self.on_frame(self.display.copy())
-                    self._fade_display()
                 if now - last_rate_time >= 1.0:
                     delta_events = self.total_events - last_rate_events
                     last_rate_events = self.total_events
@@ -1747,8 +1752,22 @@ class V4L2EventStream:
             self.stop_recording()
             self.on_status("Camera stream closed.")
 
+    def _run_frames(self):
+        next_frame_time = time.monotonic()
+        while not self.stop_event.is_set():
+            now = time.monotonic()
+            if now < next_frame_time:
+                time.sleep(min(0.02, next_frame_time - now))
+                continue
+            with self.display_lock:
+                frame = self.display.copy()
+                self._fade_display()
+            self.on_frame(frame)
+            next_frame_time = now + self.frame_interval
+
     def _reset_display(self):
-        self.display[:] = np.array(self.bg_color, dtype=np.uint8)
+        with self.display_lock:
+            self.display[:] = np.array(self.bg_color, dtype=np.uint8)
 
     def _fade_display(self):
         bg = np.array(self.bg_color, dtype=np.float32)
@@ -1831,20 +1850,21 @@ class V4L2EventStream:
             on[:] = False
 
         radius = max(0, min(4, int(self.point_radius)))
-        if radius == 0:
-            if np.any(off):
-                self.display[y[off], x[off]] = self.off_color
-            if np.any(on):
-                self.display[y[on], x[on]] = self.on_color
-        else:
-            for dy in range(-radius, radius + 1):
-                yy = (y + dy).clip(0, VIEW_H - 1)
-                for dx in range(-radius, radius + 1):
-                    xx = (x + dx).clip(0, VIEW_W - 1)
-                    if np.any(off):
-                        self.display[yy[off], xx[off]] = self.off_color
-                    if np.any(on):
-                        self.display[yy[on], xx[on]] = self.on_color
+        with self.display_lock:
+            if radius == 0:
+                if np.any(off):
+                    self.display[y[off], x[off]] = self.off_color
+                if np.any(on):
+                    self.display[y[on], x[on]] = self.on_color
+            else:
+                for dy in range(-radius, radius + 1):
+                    yy = (y + dy).clip(0, VIEW_H - 1)
+                    for dx in range(-radius, radius + 1):
+                        xx = (x + dx).clip(0, VIEW_W - 1)
+                        if np.any(off):
+                            self.display[yy[off], xx[off]] = self.off_color
+                        if np.any(on):
+                            self.display[yy[on], xx[on]] = self.on_color
         return event_count
 
 
@@ -2296,7 +2316,7 @@ class EventCameraApp(Gtk.Window):
 
         grid.attach(self.make_label("FPS"), 2, 0, 1, 1)
         self.fps_spin = Gtk.SpinButton.new_with_range(5, 60, 1)
-        self.fps_spin.set_value(min(8, max(5, int(MAX_LIVE_PREVIEW_FPS))))
+        self.fps_spin.set_value(min(24, max(5, int(MAX_LIVE_DISPLAY_FPS))))
         self.fps_spin.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.fps_spin, 3, 0, 1, 1)
 
