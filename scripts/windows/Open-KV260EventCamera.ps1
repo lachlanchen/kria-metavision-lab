@@ -1,7 +1,8 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$HostAlias = "petalinux-kv260",
     [string]$RemoteProject = "/home/petalinux/Projects/kria-kv260-starter",
+    [string]$Language = "",
     [switch]$CheckOnly,
     [switch]$FilesSelfTest,
     [switch]$UiSelfTest
@@ -13,8 +14,11 @@ $BoardScript = Join-Path $InstallDir "Start-KV260EventCamera-BoardDesktop.ps1"
 $X11Script = Join-Path $InstallDir "Start-KV260EventCamera-X11.ps1"
 $LogDir = Join-Path $env:TEMP "kv260-event-camera"
 $ControlLog = Join-Path $LogDir "control-center.log"
+$SettingsDir = if ($env:APPDATA) { Join-Path $env:APPDATA "KV260ControlCenter" } else { Join-Path $env:TEMP "KV260ControlCenter" }
+$SettingsPath = Join-Path $SettingsDir "settings.json"
 $JupyterLocalPort = 8888
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+New-Item -ItemType Directory -Force -Path $SettingsDir | Out-Null
 
 function Write-AppLog {
     param([string]$Text)
@@ -119,6 +123,595 @@ if ($CheckOnly) {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName Microsoft.VisualBasic
+
+$script:SupportedLanguages = @(
+    [pscustomobject]@{ Code = "en"; Name = "English" },
+    [pscustomobject]@{ Code = "ar"; Name = "العربية" },
+    [pscustomobject]@{ Code = "es"; Name = "Español" },
+    [pscustomobject]@{ Code = "fr"; Name = "Français" },
+    [pscustomobject]@{ Code = "ja"; Name = "日本語" },
+    [pscustomobject]@{ Code = "ko"; Name = "한국어" },
+    [pscustomobject]@{ Code = "vi"; Name = "Tiếng Việt" },
+    [pscustomobject]@{ Code = "zh-Hans"; Name = "中文 简体" },
+    [pscustomobject]@{ Code = "zh-Hant"; Name = "中文 繁體" },
+    [pscustomobject]@{ Code = "de"; Name = "Deutsch" },
+    [pscustomobject]@{ Code = "ru"; Name = "Русский" }
+)
+
+$script:Translations = @{
+    en = @{
+        "KV260 Control Center" = "KV260 Control Center"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point."
+        "Language" = "Language"
+        "Camera" = "Camera"
+        "Applications" = "Applications"
+        "Files" = "Files"
+        "Notebook And Power" = "Notebook And Power"
+        "Open Camera On Windows" = "Open Camera On Windows"
+        "Open Camera On KV260" = "Open Camera On KV260"
+        "Native Metavision Viewer" = "Native Metavision Viewer"
+        "Stop Camera Viewers" = "Stop Camera Viewers"
+        "Status" = "Status"
+        "File Manager" = "File Manager"
+        "Terminal" = "Terminal"
+        "RXVT Terminal" = "RXVT Terminal"
+        "Text Editor" = "Text Editor"
+        "Appearance" = "Appearance"
+        "Touch Calibrator" = "Touch Calibrator"
+        "Preferred Apps" = "Preferred Apps"
+        "Desktop Preferences" = "Desktop Preferences"
+        "File Transfer GUI" = "File Transfer GUI"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right."
+        "KV260 Board" = "KV260 Board"
+        "Windows / Remote Host" = "Windows / Remote Host"
+        "Browse" = "Browse"
+        "Up" = "Up"
+        "Refresh" = "Refresh"
+        "Copy Windows -> KV260" = "Copy Windows -> KV260"
+        "Copy KV260 -> Windows" = "Copy KV260 -> Windows"
+        "Refresh Both" = "Refresh Both"
+        "New KV260 Folder" = "New KV260 Folder"
+        "Open Board Transfer GUI" = "Open Board Transfer GUI"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "Drag files or rows onto a pane. Drop on a folder row to copy into that folder."
+        "Drop target: {0} folder -> {1}" = "Drop target: {0} folder -> {1}"
+        "Drop target: {0} current folder -> {1}" = "Drop target: {0} current folder -> {1}"
+        "Open Jupyter Notebook" = "Open Jupyter Notebook"
+        "Stop Jupyter" = "Stop Jupyter"
+        "Reboot KV260" = "Reboot KV260"
+        "Shutdown KV260" = "Shutdown KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner."
+        "Probe Button" = "Probe Button"
+    }
+    ar = @{
+        "KV260 Control Center" = "مركز تحكم KV260"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "شغل كاميرا الأحداث وأدوات اللوحة والدفاتر وإجراءات النظام من نقطة واحدة في ويندوز."
+        "Language" = "اللغة"
+        "Camera" = "الكاميرا"
+        "Applications" = "التطبيقات"
+        "Files" = "الملفات"
+        "Notebook And Power" = "الدفتر والطاقة"
+        "Open Camera On Windows" = "فتح الكاميرا على ويندوز"
+        "Open Camera On KV260" = "فتح الكاميرا على KV260"
+        "Native Metavision Viewer" = "عارض Metavision الأصلي"
+        "Stop Camera Viewers" = "إيقاف عارضات الكاميرا"
+        "Status" = "الحالة"
+        "File Manager" = "مدير الملفات"
+        "Terminal" = "الطرفية"
+        "RXVT Terminal" = "طرفية RXVT"
+        "Text Editor" = "محرر النصوص"
+        "Appearance" = "المظهر"
+        "Touch Calibrator" = "معايرة اللمس"
+        "Preferred Apps" = "التطبيقات المفضلة"
+        "Desktop Preferences" = "تفضيلات سطح المكتب"
+        "File Transfer GUI" = "واجهة نقل الملفات"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "انسخ الملفات والمجلدات بين لوحة KV260 في اليسار ومضيف ويندوز أو المضيف البعيد في اليمين."
+        "KV260 Board" = "لوحة KV260"
+        "Windows / Remote Host" = "ويندوز / مضيف بعيد"
+        "Browse" = "تصفح"
+        "Up" = "أعلى"
+        "Refresh" = "تحديث"
+        "Copy Windows -> KV260" = "نسخ ويندوز -> KV260"
+        "Copy KV260 -> Windows" = "نسخ KV260 -> ويندوز"
+        "Refresh Both" = "تحديث الكل"
+        "New KV260 Folder" = "مجلد KV260 جديد"
+        "Open Board Transfer GUI" = "فتح نقل اللوحة"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "اسحب الملفات أو الصفوف إلى لوحة. أفلت على صف مجلد للنسخ داخله."
+        "Drop target: {0} folder -> {1}" = "هدف الإفلات: مجلد {0} -> {1}"
+        "Drop target: {0} current folder -> {1}" = "هدف الإفلات: مجلد {0} الحالي -> {1}"
+        "Open Jupyter Notebook" = "فتح Jupyter Notebook"
+        "Stop Jupyter" = "إيقاف Jupyter"
+        "Reboot KV260" = "إعادة تشغيل KV260"
+        "Shutdown KV260" = "إيقاف KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "تستخدم تطبيقات Windows X11 برنامج VcXsrv. تطبيقات الكاميرا حصرية لأن /dev/video0 يقبل مالكا واحدا فقط."
+        "Probe Button" = "زر اختبار"
+    }
+    es = @{
+        "KV260 Control Center" = "Centro de Control KV260"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Abre la cámara de eventos, herramientas de la placa, notebooks y acciones del sistema desde una sola entrada de Windows."
+        "Language" = "Idioma"
+        "Camera" = "Cámara"
+        "Applications" = "Aplicaciones"
+        "Files" = "Archivos"
+        "Notebook And Power" = "Notebook y energía"
+        "Open Camera On Windows" = "Abrir cámara en Windows"
+        "Open Camera On KV260" = "Abrir cámara en KV260"
+        "Native Metavision Viewer" = "Visor Metavision nativo"
+        "Stop Camera Viewers" = "Detener visores"
+        "Status" = "Estado"
+        "File Manager" = "Gestor de archivos"
+        "Terminal" = "Terminal"
+        "RXVT Terminal" = "Terminal RXVT"
+        "Text Editor" = "Editor de texto"
+        "Appearance" = "Apariencia"
+        "Touch Calibrator" = "Calibrador táctil"
+        "Preferred Apps" = "Apps preferidas"
+        "Desktop Preferences" = "Preferencias de escritorio"
+        "File Transfer GUI" = "Transferencia de archivos"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "Copia archivos y carpetas entre la KV260 a la izquierda y Windows o el host remoto a la derecha."
+        "KV260 Board" = "Placa KV260"
+        "Windows / Remote Host" = "Windows / host remoto"
+        "Browse" = "Buscar"
+        "Up" = "Subir"
+        "Refresh" = "Actualizar"
+        "Copy Windows -> KV260" = "Copiar Windows -> KV260"
+        "Copy KV260 -> Windows" = "Copiar KV260 -> Windows"
+        "Refresh Both" = "Actualizar ambos"
+        "New KV260 Folder" = "Nueva carpeta KV260"
+        "Open Board Transfer GUI" = "Abrir transferencia"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "Arrastra archivos o filas a un panel. Suelta sobre una carpeta para copiar dentro."
+        "Drop target: {0} folder -> {1}" = "Destino: carpeta {0} -> {1}"
+        "Drop target: {0} current folder -> {1}" = "Destino: carpeta actual {0} -> {1}"
+        "Open Jupyter Notebook" = "Abrir Jupyter Notebook"
+        "Stop Jupyter" = "Detener Jupyter"
+        "Reboot KV260" = "Reiniciar KV260"
+        "Shutdown KV260" = "Apagar KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Las apps X11 en Windows usan VcXsrv. La cámara es exclusiva porque /dev/video0 solo puede tener un dueño."
+        "Probe Button" = "Botón de prueba"
+    }
+    fr = @{
+        "KV260 Control Center" = "Centre de contrôle KV260"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Lancez la caméra événementielle, les outils de la carte, les notebooks et les actions système depuis une seule entrée Windows."
+        "Language" = "Langue"
+        "Camera" = "Caméra"
+        "Applications" = "Applications"
+        "Files" = "Fichiers"
+        "Notebook And Power" = "Notebook et alimentation"
+        "Open Camera On Windows" = "Ouvrir caméra sur Windows"
+        "Open Camera On KV260" = "Ouvrir caméra sur KV260"
+        "Native Metavision Viewer" = "Visionneuse Metavision native"
+        "Stop Camera Viewers" = "Arrêter les visionneuses"
+        "Status" = "État"
+        "File Manager" = "Gestionnaire de fichiers"
+        "Terminal" = "Terminal"
+        "RXVT Terminal" = "Terminal RXVT"
+        "Text Editor" = "Éditeur de texte"
+        "Appearance" = "Apparence"
+        "Touch Calibrator" = "Calibration tactile"
+        "Preferred Apps" = "Apps préférées"
+        "Desktop Preferences" = "Préférences du bureau"
+        "File Transfer GUI" = "Transfert de fichiers"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "Copiez fichiers et dossiers entre la KV260 à gauche et Windows ou l’hôte distant à droite."
+        "KV260 Board" = "Carte KV260"
+        "Windows / Remote Host" = "Windows / hôte distant"
+        "Browse" = "Parcourir"
+        "Up" = "Monter"
+        "Refresh" = "Actualiser"
+        "Copy Windows -> KV260" = "Copier Windows -> KV260"
+        "Copy KV260 -> Windows" = "Copier KV260 -> Windows"
+        "Refresh Both" = "Tout actualiser"
+        "New KV260 Folder" = "Nouveau dossier KV260"
+        "Open Board Transfer GUI" = "Ouvrir le transfert"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "Glissez fichiers ou lignes sur un panneau. Déposez sur un dossier pour copier dedans."
+        "Drop target: {0} folder -> {1}" = "Cible : dossier {0} -> {1}"
+        "Drop target: {0} current folder -> {1}" = "Cible : dossier courant {0} -> {1}"
+        "Open Jupyter Notebook" = "Ouvrir Jupyter Notebook"
+        "Stop Jupyter" = "Arrêter Jupyter"
+        "Reboot KV260" = "Redémarrer KV260"
+        "Shutdown KV260" = "Éteindre KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Les apps X11 Windows utilisent VcXsrv. La caméra est exclusive car /dev/video0 ne peut avoir qu’un propriétaire."
+        "Probe Button" = "Bouton test"
+    }
+    ja = @{
+        "KV260 Control Center" = "KV260 コントロールセンター"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "イベントカメラ、ボードツール、ノートブック、システム操作を Windows からまとめて起動します。"
+        "Language" = "言語"
+        "Camera" = "カメラ"
+        "Applications" = "アプリ"
+        "Files" = "ファイル"
+        "Notebook And Power" = "Notebook と電源"
+        "Open Camera On Windows" = "Windows でカメラを開く"
+        "Open Camera On KV260" = "KV260 でカメラを開く"
+        "Native Metavision Viewer" = "Metavision 標準ビューア"
+        "Stop Camera Viewers" = "ビューアを停止"
+        "Status" = "状態"
+        "File Manager" = "ファイル管理"
+        "Terminal" = "端末"
+        "RXVT Terminal" = "RXVT 端末"
+        "Text Editor" = "テキスト編集"
+        "Appearance" = "外観"
+        "Touch Calibrator" = "タッチ調整"
+        "Preferred Apps" = "既定アプリ"
+        "Desktop Preferences" = "デスクトップ設定"
+        "File Transfer GUI" = "ファイル転送"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "左の KV260 と右の Windows/リモートホスト間でファイルとフォルダをコピーします。"
+        "KV260 Board" = "KV260 ボード"
+        "Windows / Remote Host" = "Windows / リモート"
+        "Browse" = "参照"
+        "Up" = "上へ"
+        "Refresh" = "更新"
+        "Copy Windows -> KV260" = "Windows -> KV260"
+        "Copy KV260 -> Windows" = "KV260 -> Windows"
+        "Refresh Both" = "両方更新"
+        "New KV260 Folder" = "KV260 フォルダ作成"
+        "Open Board Transfer GUI" = "転送 GUI を開く"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "ファイルや行をペインにドラッグします。フォルダ行へドロップするとその中にコピーします。"
+        "Drop target: {0} folder -> {1}" = "ドロップ先: {0} フォルダ -> {1}"
+        "Drop target: {0} current folder -> {1}" = "ドロップ先: {0} 現在フォルダ -> {1}"
+        "Open Jupyter Notebook" = "Jupyter Notebook を開く"
+        "Stop Jupyter" = "Jupyter を停止"
+        "Reboot KV260" = "KV260 再起動"
+        "Shutdown KV260" = "KV260 シャットダウン"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Windows X11 アプリは VcXsrv を使用します。/dev/video0 は同時に 1 つの所有者だけです。"
+        "Probe Button" = "テストボタン"
+    }
+    ko = @{
+        "KV260 Control Center" = "KV260 제어 센터"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Windows 한 곳에서 이벤트 카메라, 보드 도구, 노트북, 시스템 작업을 실행합니다."
+        "Language" = "언어"
+        "Camera" = "카메라"
+        "Applications" = "애플리케이션"
+        "Files" = "파일"
+        "Notebook And Power" = "노트북 및 전원"
+        "Open Camera On Windows" = "Windows에서 카메라 열기"
+        "Open Camera On KV260" = "KV260에서 카메라 열기"
+        "Native Metavision Viewer" = "기본 Metavision 뷰어"
+        "Stop Camera Viewers" = "카메라 뷰어 중지"
+        "Status" = "상태"
+        "File Manager" = "파일 관리자"
+        "Terminal" = "터미널"
+        "RXVT Terminal" = "RXVT 터미널"
+        "Text Editor" = "텍스트 편집기"
+        "Appearance" = "모양"
+        "Touch Calibrator" = "터치 보정"
+        "Preferred Apps" = "기본 앱"
+        "Desktop Preferences" = "데스크톱 설정"
+        "File Transfer GUI" = "파일 전송"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "왼쪽 KV260과 오른쪽 Windows/원격 호스트 사이에서 파일과 폴더를 복사합니다."
+        "KV260 Board" = "KV260 보드"
+        "Windows / Remote Host" = "Windows / 원격 호스트"
+        "Browse" = "찾기"
+        "Up" = "위로"
+        "Refresh" = "새로고침"
+        "Copy Windows -> KV260" = "Windows -> KV260"
+        "Copy KV260 -> Windows" = "KV260 -> Windows"
+        "Refresh Both" = "둘 다 새로고침"
+        "New KV260 Folder" = "새 KV260 폴더"
+        "Open Board Transfer GUI" = "전송 GUI 열기"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "파일이나 행을 패널로 끌어오세요. 폴더 행에 놓으면 그 안으로 복사됩니다."
+        "Drop target: {0} folder -> {1}" = "드롭 대상: {0} 폴더 -> {1}"
+        "Drop target: {0} current folder -> {1}" = "드롭 대상: {0} 현재 폴더 -> {1}"
+        "Open Jupyter Notebook" = "Jupyter Notebook 열기"
+        "Stop Jupyter" = "Jupyter 중지"
+        "Reboot KV260" = "KV260 재부팅"
+        "Shutdown KV260" = "KV260 종료"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Windows X11 앱은 VcXsrv를 사용합니다. /dev/video0은 한 번에 하나의 소유자만 사용할 수 있습니다."
+        "Probe Button" = "테스트 버튼"
+    }
+    vi = @{
+        "KV260 Control Center" = "Trung tâm điều khiển KV260"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Mở camera sự kiện, công cụ bo mạch, notebook và thao tác hệ thống từ một điểm trên Windows."
+        "Language" = "Ngôn ngữ"
+        "Camera" = "Camera"
+        "Applications" = "Ứng dụng"
+        "Files" = "Tệp"
+        "Notebook And Power" = "Notebook và nguồn"
+        "Open Camera On Windows" = "Mở camera trên Windows"
+        "Open Camera On KV260" = "Mở camera trên KV260"
+        "Native Metavision Viewer" = "Trình xem Metavision gốc"
+        "Stop Camera Viewers" = "Dừng trình xem"
+        "Status" = "Trạng thái"
+        "File Manager" = "Quản lý tệp"
+        "Terminal" = "Terminal"
+        "RXVT Terminal" = "Terminal RXVT"
+        "Text Editor" = "Soạn thảo văn bản"
+        "Appearance" = "Giao diện"
+        "Touch Calibrator" = "Hiệu chỉnh cảm ứng"
+        "Preferred Apps" = "Ứng dụng mặc định"
+        "Desktop Preferences" = "Tùy chọn desktop"
+        "File Transfer GUI" = "Truyền tệp"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "Sao chép tệp và thư mục giữa KV260 bên trái và Windows hoặc máy từ xa bên phải."
+        "KV260 Board" = "Bo KV260"
+        "Windows / Remote Host" = "Windows / máy từ xa"
+        "Browse" = "Duyệt"
+        "Up" = "Lên"
+        "Refresh" = "Làm mới"
+        "Copy Windows -> KV260" = "Windows -> KV260"
+        "Copy KV260 -> Windows" = "KV260 -> Windows"
+        "Refresh Both" = "Làm mới cả hai"
+        "New KV260 Folder" = "Thư mục KV260 mới"
+        "Open Board Transfer GUI" = "Mở truyền tệp"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "Kéo tệp hoặc dòng vào khung. Thả lên thư mục để sao chép vào đó."
+        "Drop target: {0} folder -> {1}" = "Đích thả: thư mục {0} -> {1}"
+        "Drop target: {0} current folder -> {1}" = "Đích thả: thư mục hiện tại {0} -> {1}"
+        "Open Jupyter Notebook" = "Mở Jupyter Notebook"
+        "Stop Jupyter" = "Dừng Jupyter"
+        "Reboot KV260" = "Khởi động lại KV260"
+        "Shutdown KV260" = "Tắt KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Ứng dụng X11 trên Windows dùng VcXsrv. Camera là độc quyền vì /dev/video0 chỉ có một chủ sở hữu."
+        "Probe Button" = "Nút kiểm tra"
+    }
+    "zh-Hans" = @{
+        "KV260 Control Center" = "KV260 控制中心"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "从一个 Windows 入口启动事件相机、板端工具、Notebook 和系统操作。"
+        "Language" = "语言"
+        "Camera" = "相机"
+        "Applications" = "应用"
+        "Files" = "文件"
+        "Notebook And Power" = "Notebook 与电源"
+        "Open Camera On Windows" = "在 Windows 打开相机"
+        "Open Camera On KV260" = "在 KV260 打开相机"
+        "Native Metavision Viewer" = "原生 Metavision 查看器"
+        "Stop Camera Viewers" = "停止相机查看器"
+        "Status" = "状态"
+        "File Manager" = "文件管理器"
+        "Terminal" = "终端"
+        "RXVT Terminal" = "RXVT 终端"
+        "Text Editor" = "文本编辑器"
+        "Appearance" = "外观"
+        "Touch Calibrator" = "触摸校准"
+        "Preferred Apps" = "首选应用"
+        "Desktop Preferences" = "桌面设置"
+        "File Transfer GUI" = "文件传输界面"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "在左侧 KV260 和右侧 Windows/远程主机之间复制文件和文件夹。"
+        "KV260 Board" = "KV260 板端"
+        "Windows / Remote Host" = "Windows / 远程主机"
+        "Browse" = "浏览"
+        "Up" = "上级"
+        "Refresh" = "刷新"
+        "Copy Windows -> KV260" = "Windows -> KV260"
+        "Copy KV260 -> Windows" = "KV260 -> Windows"
+        "Refresh Both" = "刷新两侧"
+        "New KV260 Folder" = "新建 KV260 文件夹"
+        "Open Board Transfer GUI" = "打开板端传输界面"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "将文件或行拖到面板。拖到文件夹行可复制到该文件夹。"
+        "Drop target: {0} folder -> {1}" = "拖放目标：{0} 文件夹 -> {1}"
+        "Drop target: {0} current folder -> {1}" = "拖放目标：{0} 当前文件夹 -> {1}"
+        "Open Jupyter Notebook" = "打开 Jupyter Notebook"
+        "Stop Jupyter" = "停止 Jupyter"
+        "Reboot KV260" = "重启 KV260"
+        "Shutdown KV260" = "关闭 KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Windows X11 应用使用 VcXsrv。相机应用独占，因为 /dev/video0 只能有一个所有者。"
+        "Probe Button" = "测试按钮"
+    }
+    "zh-Hant" = @{
+        "KV260 Control Center" = "KV260 控制中心"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "從一個 Windows 入口啟動事件相機、板端工具、Notebook 與系統操作。"
+        "Language" = "語言"
+        "Camera" = "相機"
+        "Applications" = "應用程式"
+        "Files" = "檔案"
+        "Notebook And Power" = "Notebook 與電源"
+        "Open Camera On Windows" = "在 Windows 開啟相機"
+        "Open Camera On KV260" = "在 KV260 開啟相機"
+        "Native Metavision Viewer" = "原生 Metavision 檢視器"
+        "Stop Camera Viewers" = "停止相機檢視器"
+        "Status" = "狀態"
+        "File Manager" = "檔案管理器"
+        "Terminal" = "終端機"
+        "RXVT Terminal" = "RXVT 終端機"
+        "Text Editor" = "文字編輯器"
+        "Appearance" = "外觀"
+        "Touch Calibrator" = "觸控校準"
+        "Preferred Apps" = "偏好應用"
+        "Desktop Preferences" = "桌面設定"
+        "File Transfer GUI" = "檔案傳輸介面"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "在左側 KV260 與右側 Windows/遠端主機之間複製檔案和資料夾。"
+        "KV260 Board" = "KV260 板端"
+        "Windows / Remote Host" = "Windows / 遠端主機"
+        "Browse" = "瀏覽"
+        "Up" = "上層"
+        "Refresh" = "重新整理"
+        "Copy Windows -> KV260" = "Windows -> KV260"
+        "Copy KV260 -> Windows" = "KV260 -> Windows"
+        "Refresh Both" = "重新整理兩側"
+        "New KV260 Folder" = "新增 KV260 資料夾"
+        "Open Board Transfer GUI" = "開啟板端傳輸介面"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "將檔案或列拖到面板。拖到資料夾列可複製到該資料夾。"
+        "Drop target: {0} folder -> {1}" = "拖放目標：{0} 資料夾 -> {1}"
+        "Drop target: {0} current folder -> {1}" = "拖放目標：{0} 目前資料夾 -> {1}"
+        "Open Jupyter Notebook" = "開啟 Jupyter Notebook"
+        "Stop Jupyter" = "停止 Jupyter"
+        "Reboot KV260" = "重新啟動 KV260"
+        "Shutdown KV260" = "關閉 KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Windows X11 應用使用 VcXsrv。相機應用為獨占，因為 /dev/video0 只能有一個擁有者。"
+        "Probe Button" = "測試按鈕"
+    }
+    de = @{
+        "KV260 Control Center" = "KV260 Kontrollzentrum"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Startet Ereigniskamera, Board-Werkzeuge, Notebooks und Systemaktionen von einem Windows-Einstieg."
+        "Language" = "Sprache"
+        "Camera" = "Kamera"
+        "Applications" = "Anwendungen"
+        "Files" = "Dateien"
+        "Notebook And Power" = "Notebook und Energie"
+        "Open Camera On Windows" = "Kamera auf Windows öffnen"
+        "Open Camera On KV260" = "Kamera auf KV260 öffnen"
+        "Native Metavision Viewer" = "Nativer Metavision Viewer"
+        "Stop Camera Viewers" = "Viewer stoppen"
+        "Status" = "Status"
+        "File Manager" = "Dateimanager"
+        "Terminal" = "Terminal"
+        "RXVT Terminal" = "RXVT Terminal"
+        "Text Editor" = "Texteditor"
+        "Appearance" = "Darstellung"
+        "Touch Calibrator" = "Touch-Kalibrierung"
+        "Preferred Apps" = "Standard-Apps"
+        "Desktop Preferences" = "Desktop-Einstellungen"
+        "File Transfer GUI" = "Dateitransfer"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "Kopiert Dateien und Ordner zwischen KV260 links und Windows oder Remote-Host rechts."
+        "KV260 Board" = "KV260 Board"
+        "Windows / Remote Host" = "Windows / Remote-Host"
+        "Browse" = "Durchsuchen"
+        "Up" = "Hoch"
+        "Refresh" = "Aktualisieren"
+        "Copy Windows -> KV260" = "Windows -> KV260"
+        "Copy KV260 -> Windows" = "KV260 -> Windows"
+        "Refresh Both" = "Beide aktualisieren"
+        "New KV260 Folder" = "Neuer KV260 Ordner"
+        "Open Board Transfer GUI" = "Transfer-GUI öffnen"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "Dateien oder Zeilen auf ein Feld ziehen. Auf Ordnerzeile ablegen, um dorthin zu kopieren."
+        "Drop target: {0} folder -> {1}" = "Ablageziel: {0} Ordner -> {1}"
+        "Drop target: {0} current folder -> {1}" = "Ablageziel: {0} aktueller Ordner -> {1}"
+        "Open Jupyter Notebook" = "Jupyter Notebook öffnen"
+        "Stop Jupyter" = "Jupyter stoppen"
+        "Reboot KV260" = "KV260 neu starten"
+        "Shutdown KV260" = "KV260 herunterfahren"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Windows-X11-Apps nutzen VcXsrv. Kamera-Apps sind exklusiv, da /dev/video0 nur einen Besitzer haben kann."
+        "Probe Button" = "Testknopf"
+    }
+    ru = @{
+        "KV260 Control Center" = "Центр управления KV260"
+        "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." = "Запуск событийной камеры, инструментов платы, ноутбуков и системных действий из одного окна Windows."
+        "Language" = "Язык"
+        "Camera" = "Камера"
+        "Applications" = "Приложения"
+        "Files" = "Файлы"
+        "Notebook And Power" = "Notebook и питание"
+        "Open Camera On Windows" = "Открыть камеру в Windows"
+        "Open Camera On KV260" = "Открыть камеру на KV260"
+        "Native Metavision Viewer" = "Родной Metavision Viewer"
+        "Stop Camera Viewers" = "Остановить просмотр"
+        "Status" = "Статус"
+        "File Manager" = "Файловый менеджер"
+        "Terminal" = "Терминал"
+        "RXVT Terminal" = "Терминал RXVT"
+        "Text Editor" = "Текстовый редактор"
+        "Appearance" = "Внешний вид"
+        "Touch Calibrator" = "Калибровка сенсора"
+        "Preferred Apps" = "Приложения по умолчанию"
+        "Desktop Preferences" = "Настройки рабочего стола"
+        "File Transfer GUI" = "Передача файлов"
+        "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." = "Копируйте файлы и папки между KV260 слева и Windows или удаленным хостом справа."
+        "KV260 Board" = "Плата KV260"
+        "Windows / Remote Host" = "Windows / удаленный хост"
+        "Browse" = "Обзор"
+        "Up" = "Вверх"
+        "Refresh" = "Обновить"
+        "Copy Windows -> KV260" = "Windows -> KV260"
+        "Copy KV260 -> Windows" = "KV260 -> Windows"
+        "Refresh Both" = "Обновить оба"
+        "New KV260 Folder" = "Новая папка KV260"
+        "Open Board Transfer GUI" = "Открыть передачу"
+        "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." = "Перетащите файлы или строки на панель. Бросьте на папку, чтобы скопировать внутрь."
+        "Drop target: {0} folder -> {1}" = "Цель: папка {0} -> {1}"
+        "Drop target: {0} current folder -> {1}" = "Цель: текущая папка {0} -> {1}"
+        "Open Jupyter Notebook" = "Открыть Jupyter Notebook"
+        "Stop Jupyter" = "Остановить Jupyter"
+        "Reboot KV260" = "Перезагрузить KV260"
+        "Shutdown KV260" = "Выключить KV260"
+        "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." = "Windows X11 приложения используют VcXsrv. Камера эксклюзивна, потому что /dev/video0 может иметь только одного владельца."
+        "Probe Button" = "Тестовая кнопка"
+    }
+}
+
+function Get-ControlSettings {
+    if (Test-Path -LiteralPath $SettingsPath) {
+        try {
+            return (Get-Content -LiteralPath $SettingsPath -Raw | ConvertFrom-Json)
+        } catch {
+            Write-AppLog "Could not read settings: $($_.Exception.Message)"
+        }
+    }
+    return [pscustomobject]@{}
+}
+
+$script:ControlSettings = Get-ControlSettings
+$script:LocalizedControls = @{}
+
+function Test-LanguageCode {
+    param([string]$Code)
+    return [bool]($script:SupportedLanguages | Where-Object { $_.Code -eq $Code } | Select-Object -First 1)
+}
+
+function Resolve-Language {
+    param([string]$Requested)
+    if (-not [string]::IsNullOrWhiteSpace($Requested) -and (Test-LanguageCode $Requested)) {
+        return $Requested
+    }
+    $saved = ""
+    if ($script:ControlSettings -and $script:ControlSettings.PSObject.Properties.Name -contains "language") {
+        $saved = [string]$script:ControlSettings.language
+    }
+    if (-not [string]::IsNullOrWhiteSpace($saved) -and (Test-LanguageCode $saved)) {
+        return $saved
+    }
+    return "en"
+}
+
+$script:CurrentLanguage = Resolve-Language $Language
+
+function Save-LanguagePreference {
+    param([string]$Code)
+    try {
+        [pscustomobject]@{ language = $Code } |
+            ConvertTo-Json -Depth 3 |
+            Set-Content -LiteralPath $SettingsPath -Encoding UTF8
+    } catch {
+        Write-AppLog "Could not save language preference: $($_.Exception.Message)"
+    }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Language)) {
+    Save-LanguagePreference $script:CurrentLanguage
+}
+
+function Get-Text {
+    param([string]$Key)
+    if ($script:Translations.ContainsKey($script:CurrentLanguage) -and $script:Translations[$script:CurrentLanguage].ContainsKey($Key)) {
+        return $script:Translations[$script:CurrentLanguage][$Key]
+    }
+    if ($script:Translations.en.ContainsKey($Key)) {
+        return $script:Translations.en[$Key]
+    }
+    return $Key
+}
+
+function Format-Text {
+    param([string]$Key, [object[]]$Args)
+    return ((Get-Text $Key) -f $Args)
+}
+
+function Register-LocalizedControl {
+    param([string]$Key, [object]$Control)
+    if (-not $script:LocalizedControls.ContainsKey($Key)) {
+        $script:LocalizedControls[$Key] = New-Object System.Collections.ArrayList
+    }
+    [void]$script:LocalizedControls[$Key].Add($Control)
+    $Control.Text = Get-Text $Key
+}
+
+function Apply-Language {
+    foreach ($key in @($script:LocalizedControls.Keys)) {
+        foreach ($control in @($script:LocalizedControls[$key])) {
+            if ($control -and (-not ($control.PSObject.Properties.Name -contains "IsDisposed") -or -not $control.IsDisposed)) {
+                $control.Text = Get-Text $key
+            }
+        }
+    }
+    if (Get-Variable -Name FileDropHint -Scope Script -ErrorAction SilentlyContinue) {
+        $script:FileDropHint.Text = Get-Text "Drag files or rows onto a pane. Drop on a folder row to copy into that folder."
+    }
+}
+
+function Set-ControlLanguage {
+    param([string]$Code)
+    if (-not (Test-LanguageCode $Code)) {
+        $Code = "en"
+    }
+    $script:CurrentLanguage = $Code
+    Save-LanguagePreference $Code
+    Apply-Language
+}
 
 function New-FileIconImage {
     param(
@@ -554,7 +1147,7 @@ function Clear-DropFeedback {
         $script:DropActiveListBackColor = $null
     }
     if (Get-Variable -Name FileDropHint -Scope Script -ErrorAction SilentlyContinue) {
-        $script:FileDropHint.Text = "Drag files or rows onto a pane. Drop on a folder row to copy into that folder."
+        $script:FileDropHint.Text = Get-Text "Drag files or rows onto a pane. Drop on a folder row to copy into that folder."
         $script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(100, 116, 139)
     }
 }
@@ -604,10 +1197,10 @@ function Set-DropFeedback {
 
     if (Get-Variable -Name FileDropHint -Scope Script -ErrorAction SilentlyContinue) {
         if ($targetItem) {
-            $script:FileDropHint.Text = "Drop target: $PaneName folder -> $targetPath"
+            $script:FileDropHint.Text = Format-Text "Drop target: {0} folder -> {1}" @($PaneName, $targetPath)
             $script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(146, 64, 14)
         } else {
-            $script:FileDropHint.Text = "Drop target: $PaneName current folder -> $targetPath"
+            $script:FileDropHint.Text = Format-Text "Drop target: {0} current folder -> {1}" @($PaneName, $targetPath)
             $script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(29, 78, 216)
         }
     }
@@ -1026,14 +1619,14 @@ function Shutdown-KV260 {
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "KV260 Control Center"
+Register-LocalizedControl "KV260 Control Center" $form
 $form.StartPosition = "CenterScreen"
 $form.Size = New-Object System.Drawing.Size(1120, 760)
 $form.MinimumSize = New-Object System.Drawing.Size(1040, 680)
 $form.BackColor = [System.Drawing.Color]::FromArgb(246, 248, 251)
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = "KV260 Control Center"
+Register-LocalizedControl "KV260 Control Center" $title
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 21, [System.Drawing.FontStyle]::Bold)
 $title.ForeColor = [System.Drawing.Color]::FromArgb(15, 23, 42)
 $title.Location = New-Object System.Drawing.Point(84, 16)
@@ -1053,12 +1646,44 @@ $brandPanel.Controls.Add($brandIcon)
 $form.Controls.Add($brandPanel)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point."
+Register-LocalizedControl "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point." $subtitle
 $subtitle.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
 $subtitle.Location = New-Object System.Drawing.Point(86, 54)
 $subtitle.Size = New-Object System.Drawing.Size(980, 22)
 $form.Controls.Add($subtitle)
+
+$languageLabel = New-Object System.Windows.Forms.Label
+Register-LocalizedControl "Language" $languageLabel
+$languageLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
+$languageLabel.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
+$languageLabel.Location = New-Object System.Drawing.Point(812, 20)
+$languageLabel.Size = New-Object System.Drawing.Size(86, 20)
+$languageLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+$form.Controls.Add($languageLabel)
+
+$script:LanguageCombo = New-Object System.Windows.Forms.ComboBox
+$script:LanguageCombo.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+$script:LanguageCombo.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+$script:LanguageCombo.Location = New-Object System.Drawing.Point(906, 18)
+$script:LanguageCombo.Size = New-Object System.Drawing.Size(178, 24)
+foreach ($entry in $script:SupportedLanguages) {
+    [void]$script:LanguageCombo.Items.Add($entry.Name)
+}
+$selectedLanguageIndex = 0
+for ($i = 0; $i -lt $script:SupportedLanguages.Count; $i++) {
+    if ($script:SupportedLanguages[$i].Code -eq $script:CurrentLanguage) {
+        $selectedLanguageIndex = $i
+        break
+    }
+}
+$script:LanguageCombo.SelectedIndex = $selectedLanguageIndex
+$script:LanguageCombo.Add_SelectedIndexChanged({
+    if ($script:LanguageCombo.SelectedIndex -ge 0) {
+        Set-ControlLanguage $script:SupportedLanguages[$script:LanguageCombo.SelectedIndex].Code
+    }
+})
+$form.Controls.Add($script:LanguageCombo)
 
 function New-Button {
     param(
@@ -1067,7 +1692,6 @@ function New-Button {
         [string]$Icon = ""
     )
     $button = New-Object System.Windows.Forms.Button
-    $button.Text = $Text
     $button.Size = New-Object System.Drawing.Size(174, 42)
     $button.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     $button.BackColor = $BackColor
@@ -1085,6 +1709,7 @@ function New-Button {
     if ($Icon -and $script:ActionImageList.Images.ContainsKey($Icon)) {
         $button.Image = $script:ActionImageList.Images[$Icon]
     }
+    Register-LocalizedControl $Text $button
     return $button
 }
 
@@ -1128,7 +1753,7 @@ $tabs.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($tabs)
 
 $cameraTab = New-Object System.Windows.Forms.TabPage
-$cameraTab.Text = "Camera"
+Register-LocalizedControl "Camera" $cameraTab
 $cameraPanel = New-FlowPanel
 $cameraTab.Controls.Add($cameraPanel)
 $tabs.TabPages.Add($cameraTab)
@@ -1140,7 +1765,7 @@ Add-ButtonToPanel $cameraPanel "Stop Camera Viewers" ([System.Drawing.Color]::Fr
 Add-ButtonToPanel $cameraPanel "Status" ([System.Drawing.Color]::FromArgb(71, 85, 105)) { Refresh-Status } "status"
 
 $appsTab = New-Object System.Windows.Forms.TabPage
-$appsTab.Text = "Applications"
+Register-LocalizedControl "Applications" $appsTab
 $appsPanel = New-FlowPanel
 $appsTab.Controls.Add($appsPanel)
 $tabs.TabPages.Add($appsTab)
@@ -1156,11 +1781,11 @@ Add-ButtonToPanel $appsPanel "Desktop Preferences" ([System.Drawing.Color]::From
 Add-ButtonToPanel $appsPanel "File Transfer GUI" ([System.Drawing.Color]::FromArgb(37, 99, 235)) { Open-RemoteApp "file-transfer" "KV260 File Transfer" } "transfer"
 
 $filesTab = New-Object System.Windows.Forms.TabPage
-$filesTab.Text = "Files"
+Register-LocalizedControl "Files" $filesTab
 $tabs.TabPages.Add($filesTab)
 
 $filesHeader = New-Object System.Windows.Forms.Label
-$filesHeader.Text = "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right."
+Register-LocalizedControl "Copy files and folders between the KV260 board on the left and the Windows/remote host on the right." $filesHeader
 $filesHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $filesHeader.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
 $filesHeader.Location = New-Object System.Drawing.Point(14, 12)
@@ -1169,14 +1794,14 @@ $filesHeader.Anchor = "Top,Left,Right"
 $filesTab.Controls.Add($filesHeader)
 
 $localLabel = New-Object System.Windows.Forms.Label
-$localLabel.Text = "KV260 Board"
+Register-LocalizedControl "KV260 Board" $localLabel
 $localLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $localLabel.Location = New-Object System.Drawing.Point(14, 42)
 $localLabel.Size = New-Object System.Drawing.Size(120, 22)
 $filesTab.Controls.Add($localLabel)
 
 $remoteLabel = New-Object System.Windows.Forms.Label
-$remoteLabel.Text = "Windows / Remote Host"
+Register-LocalizedControl "Windows / Remote Host" $remoteLabel
 $remoteLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $remoteLabel.Location = New-Object System.Drawing.Point(532, 42)
 $remoteLabel.Size = New-Object System.Drawing.Size(220, 22)
@@ -1367,7 +1992,7 @@ $openBoardTransfer.Add_Click({ Open-RemoteApp "file-transfer" "KV260 File Transf
 $filesTab.Controls.Add($openBoardTransfer)
 
 $script:FileDropHint = New-Object System.Windows.Forms.Label
-$script:FileDropHint.Text = "Drag files or rows onto a pane. Drop on a folder row to copy into that folder."
+Register-LocalizedControl "Drag files or rows onto a pane. Drop on a folder row to copy into that folder." $script:FileDropHint
 $script:FileDropHint.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(100, 116, 139)
 $script:FileDropHint.Location = New-Object System.Drawing.Point(14, 374)
@@ -1376,7 +2001,7 @@ $script:FileDropHint.Anchor = "Top,Left,Right"
 $filesTab.Controls.Add($script:FileDropHint)
 
 $notebookTab = New-Object System.Windows.Forms.TabPage
-$notebookTab.Text = "Notebook And Power"
+Register-LocalizedControl "Notebook And Power" $notebookTab
 $notebookPanel = New-FlowPanel
 $notebookTab.Controls.Add($notebookPanel)
 $tabs.TabPages.Add($notebookTab)
@@ -1399,7 +2024,7 @@ $script:OutputBox.ForeColor = [System.Drawing.Color]::FromArgb(226, 232, 240)
 $form.Controls.Add($script:OutputBox)
 
 $footer = New-Object System.Windows.Forms.Label
-$footer.Text = "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner."
+Register-LocalizedControl "Windows X11 apps use VcXsrv. Camera apps are exclusive because /dev/video0 can have only one owner." $footer
 $footer.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $footer.ForeColor = [System.Drawing.Color]::FromArgb(100, 116, 139)
 $footer.Location = New-Object System.Drawing.Point(24, 666)

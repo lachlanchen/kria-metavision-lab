@@ -176,3 +176,11 @@ Update after Control Center visual polish pass:
 - Camera, Applications, Files, Notebook, and Power controls have icon-specific buttons.
 - The header now has a compact KV260 visual mark instead of plain text only.
 - Added `-UiSelfTest` to validate the icon/button factory without opening the full window.
+
+Update after multilingual UI pass:
+
+- Windows Control Center now has a language selector in the header.
+- Supported UI languages match the README language set: English, Arabic, Spanish, French, Japanese, Korean, Vietnamese, Simplified Chinese, Traditional Chinese, German, and Russian.
+- The selected language is saved in `%APPDATA%\KV260ControlCenter\settings.json`.
+- The script also accepts `-Language <code>` for launch-time selection, for example `-Language zh-Hans`.
+- `Open-KV260EventCamera.ps1` is stored as UTF-8 with BOM so Windows PowerShell 5 parses non-ASCII translations correctly.
