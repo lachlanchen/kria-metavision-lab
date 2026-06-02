@@ -22,7 +22,7 @@ The primary desktop/menu entry is:
 KV260 Event Camera
 ```
 
-The native SDK viewer and file-transfer GUI are kept as scripts and Windows Control Center actions, not as second visible board menu launchers:
+The native SDK viewer and file-transfer GUI also have one board Applications launcher each:
 
 ```text
 scripts/kv260-metavision-viewer-toggle.sh
@@ -33,6 +33,8 @@ Current installed files:
 
 ```text
 /usr/share/applications/kv260-event-camera.desktop
+/usr/share/applications/kv260-metavision-viewer.desktop
+/usr/share/applications/kv260-file-transfer.desktop
 ```
 
 The installer intentionally does not leave duplicate launcher copies in:
@@ -207,7 +209,7 @@ cd /home/petalinux/Projects/kria-kv260-starter
 KV260_SUDO_PASSWORD=<password> ./scripts/kv260-install-prophesee-desktop.sh --install --global
 ```
 
-This installs the single system Applications menu entry, removes old `Metavision Event Viewer` / `Metavision Event Recorder` / `Metavision Control Panel` entries, removes stale file-transfer/native viewer desktop entries, and removes stale Desktop shortcut copies.
+This installs exactly three system Applications menu entries, removes old `Metavision Event Viewer` / `Metavision Event Recorder` / `Metavision Control Panel` entries, and removes stale duplicate Desktop shortcut copies.
 
 Expected installed entries after refresh:
 
@@ -223,6 +225,8 @@ Expected result:
 
 ```text
 /usr/share/applications/kv260-event-camera.desktop
+/usr/share/applications/kv260-metavision-viewer.desktop
+/usr/share/applications/kv260-file-transfer.desktop
 ```
 
 ## Manual Launch
@@ -300,8 +304,9 @@ Launcher lifecycle smoke tests after the desktop reset:
 
 ```text
 KV260 Event Camera opens, accepts the local quit socket command, and exits.
-Native Metavision Viewer and KV260 File Transfer remain available through scripts and the Windows Control Center, not as board menu duplicates.
-Only the single intended system Applications entry remains.
+Metavision Viewer opens/closes through the native viewer toggle helper.
+KV260 File Transfer opens through the file-transfer helper.
+Only one copy of each intended system Applications entry remains.
 ```
 
 ## Native Viewer Scripts

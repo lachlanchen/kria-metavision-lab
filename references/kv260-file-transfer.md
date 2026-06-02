@@ -136,9 +136,9 @@ On 2026-06-01:
 - Tested Windows -> KV260 -> Windows round-trip with `scp.exe -O`.
 - Tested board -> Windows -> board round-trip with the board-side transfer engine.
 - Tested board-side Windows directory listing through PowerShell JSON over SSH.
-- Earlier installed a board desktop launcher for file transfer.
-- That launcher was later removed from the board Applications menu to keep only one visible KV260 launcher.
-- The file-transfer GUI remains available through `scripts/kv260-file-transfer-gui.sh`, SSH X11, and the Windows Control Center.
+- The board Applications menu keeps one `KV260 File Transfer` launcher.
+- Duplicate Desktop/per-user copies are removed by `scripts/kv260-install-prophesee-desktop.sh`.
+- The file-transfer GUI also remains available through `scripts/kv260-file-transfer-gui.sh`, SSH X11, and the Windows Control Center.
 
 Update after layout/debug pass:
 

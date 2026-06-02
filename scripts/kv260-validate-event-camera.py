@@ -315,9 +315,13 @@ def run_bias_probe(app):
 def run_launcher_probe():
     entries = [
         pathlib.Path("/usr/share/applications/kv260-event-camera.desktop"),
+        pathlib.Path("/usr/share/applications/kv260-metavision-viewer.desktop"),
+        pathlib.Path("/usr/share/applications/kv260-file-transfer.desktop"),
     ]
     scripts = [
         HERE / "kv260-event-camera-app.sh",
+        HERE / "kv260-metavision-viewer-toggle.sh",
+        HERE / "kv260-file-transfer-gui.sh",
         HERE / "kv260-event-camera-switch.sh",
     ]
     scanned_dirs = [

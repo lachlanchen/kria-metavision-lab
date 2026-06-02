@@ -152,9 +152,11 @@ Current intended installed launcher files:
 
 ```text
 /usr/share/applications/kv260-event-camera.desktop
+/usr/share/applications/kv260-metavision-viewer.desktop
+/usr/share/applications/kv260-file-transfer.desktop
 ```
 
-There should be no duplicate KV260/Metavision/Prophesee desktop shortcuts in `/home/petalinux/Desktop` or `/home/root/Desktop`. Native `metavision_viewer` and file transfer remain available through scripts and the Windows Control Center, but no longer appear as extra board menu launchers.
+There should be no duplicate KV260/Metavision/Prophesee desktop shortcuts in `/home/petalinux/Desktop` or `/home/root/Desktop`. The native viewer and file transfer are allowed as one system launcher each.
 
 The full desktop stall recovery note is in:
 
@@ -295,11 +297,12 @@ matchbox-desktop
 matchbox-panel
 ```
 
-Both launchers were then tested:
+Launcher smoke tests:
 
 ```text
 KV260 Event Camera opens and exits through its quit socket.
-No second KV260/Metavision/Prophesee launcher is installed on the board desktop.
+Metavision Viewer opens/closes through the native toggle helper.
+KV260 File Transfer opens through the file-transfer helper.
 ```
 
 Note: the native `metavision_viewer` window close button can be unreliable on the KV260 Matchbox desktop. If the preview jumps to the upper-left corner or a gray UI appears during close, use the Windows Control Center native-viewer action or `./scripts/kv260-event-visual-gui-local.sh --stop --force`.
