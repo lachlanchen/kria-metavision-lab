@@ -22,17 +22,17 @@ The primary desktop/menu entry is:
 KV260 Event Camera
 ```
 
-The native SDK viewer is kept as a separate one-click toggle:
+The native SDK viewer is kept as a script and Windows Control Center action, not as a second visible board menu launcher:
 
 ```text
-Metavision Viewer
+scripts/kv260-metavision-viewer-toggle.sh
 ```
 
 Current installed files:
 
 ```text
 /usr/share/applications/kv260-event-camera.desktop
-/usr/share/applications/kv260-metavision-viewer.desktop
+/usr/share/applications/kv260-file-transfer.desktop
 ```
 
 The installer intentionally does not leave duplicate launcher copies in:
@@ -84,7 +84,18 @@ Size: 1280x720
 
 The app decodes the PSE2/EVT2.1 V4L2 byte stream directly and renders events in a GTK window. The preview expands the EVT2.1 32-bit `vx` vector inside each 64-bit event word, so one event-vector word can draw up to 32 neighboring x positions. This avoids the vertical stripe artifact caused by drawing only the vector base x coordinate.
 
-The current app keeps the original known-good live renderer: every live PSE2 payload is painted immediately, then the canvas decays between frames. Recording playback uses the newer EVT2.1 timestamp path with a Metavision-style accumulation window. This split is intentional: the timestamp accumulator is useful for recordings, but it made the live camera show an initial burst and then fade/static on this board.
+The current app keeps the direct V4L2 live renderer but does not paint from the capture thread. The capture thread counts every payload and queues only the newest sampled payload for preview; a separate preview/display path draws and fades the canvas. Recording playback uses the newer EVT2.1 timestamp path with a Metavision-style accumulation window. This split is intentional: the timestamp accumulator is useful for recordings, but it made the live camera show an initial burst and then fade/static on this board.
+
+The live-preview defaults are tuned for this KV260 desktop:
+
+```text
+Display cap: 24 FPS
+Preview draw cap: 20 FPS
+Preview sample cap: 2048 EVT2.1 CD words
+Point radius: 0
+```
+
+Point radius can be increased from the Display tab, but radius `0` is the smooth default because radius `1` paints a 3x3 block per event and costs much more CPU.
 
 ## Controls
 
@@ -212,7 +223,7 @@ Expected result:
 
 ```text
 /usr/share/applications/kv260-event-camera.desktop
-/usr/share/applications/kv260-metavision-viewer.desktop
+/usr/share/applications/kv260-file-transfer.desktop
 ```
 
 ## Manual Launch
@@ -256,6 +267,8 @@ recording preview decimation: non-recording decoded 174/174 buffers; recording d
 recording status and priority mode: GUI shows MB/buffer/queue/drop counters; priority on decimates preview during recording; priority off decodes every payload after the recorder enqueue
 multilingual import test: 11 language codes found; zh-Hans, zh-Hant, ar, and en fallback verified
 multilingual GUI smoke: DISPLAY=:0, KV260_EVENT_CAMERA_LANG=zh-Hans, auto-open disabled, exited cleanly through the local command socket
+2026-06-02 preview smoothness test: defaults draw_fps=20, display_fps=24, sample=2048, radius=0; 13.05 s, 1111 V4L2 buffers, 36.7M events, 134 preview frames, 133 changed frames, preview_errors=0
+2026-06-02 recording smoke: 98.5 MB written in 463 buffers over 5 s, drops=0, pending=0, write_error=None, preview_errors=0
 ```
 
 Direct stream test:
@@ -288,8 +301,9 @@ Launcher lifecycle smoke tests after the desktop reset:
 
 ```text
 KV260 Event Camera opens, accepts the local quit socket command, and exits.
-Metavision Viewer opens the native /usr/bin/metavision_viewer process, then the same launcher closes it.
-Only the two system Applications entries remain.
+KV260 File Transfer opens as the second board utility entry.
+Native Metavision Viewer remains available through scripts and the Windows Control Center, not as a board menu duplicate.
+Only the two intended system Applications entries remain.
 ```
 
 ## Native Viewer Scripts

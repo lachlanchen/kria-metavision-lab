@@ -516,7 +516,6 @@ Project:
 
 Board launchers:
   KV260 Event Camera
-  Metavision Viewer
   KV260 File Transfer
 
 Recording folder:

@@ -170,8 +170,10 @@ def run_live_preview(app, device, duration):
     }
     result["pass"] = bool(
         result["buffers"] > 0
-        and result["decoded_buffers"] == result["buffers"]
-        and result["skipped_buffers"] == 0
+        and result["events"] > 0
+        and result["decoded_buffers"] > 0
+        and result["decoded_buffers"] < result["buffers"]
+        and result["skipped_buffers"] > 0
         and result["preview_errors"] == 0
         and result["frames"]["frames"] >= 10
         and result["frames"]["after_changed"] > 0
@@ -237,10 +239,13 @@ def run_recording(app, device, record_dir, duration, priority):
         and replay["events"] > 0
         and replay["nonblank"]
     )
-    if priority:
-        preview_pass = result["skipped_buffers"] > 0 and result["decoded_buffers"] < result["buffers"]
-    else:
-        preview_pass = result["skipped_buffers"] == 0 and result["decoded_buffers"] == result["buffers"]
+    preview_pass = bool(
+        result["decoded_buffers"] > 0
+        and result["decoded_buffers"] < result["buffers"]
+        and result["skipped_buffers"] > 0
+        and result["frames"]["frames"] >= 5
+        and result["frames"]["after_changed"] > 0
+    )
     result["pass"] = bool(common_pass and preview_pass)
     return result
 
@@ -310,11 +315,11 @@ def run_bias_probe(app):
 def run_launcher_probe():
     entries = [
         pathlib.Path("/usr/share/applications/kv260-event-camera.desktop"),
-        pathlib.Path("/usr/share/applications/kv260-metavision-viewer.desktop"),
+        pathlib.Path("/usr/share/applications/kv260-file-transfer.desktop"),
     ]
     scripts = [
         HERE / "kv260-event-camera-app.sh",
-        HERE / "kv260-metavision-viewer-toggle.sh",
+        HERE / "kv260-file-transfer-gui.sh",
         HERE / "kv260-event-camera-switch.sh",
     ]
     missing_entries = [str(path) for path in entries if not path.exists()]

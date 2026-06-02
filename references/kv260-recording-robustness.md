@@ -352,11 +352,11 @@ The default and small-queue camera tests both had zero recording drops at the ob
 
 ## Stage 3 Recording Preview Decimation
 
-Stage 3 keeps preview smooth when not recording and reduces preview CPU cost while recording.
+Stage 3 kept preview smooth when not recording and reduced preview CPU cost while recording. It has since been superseded by the June 2026 smooth-preview architecture below.
 
 Policy:
 
-- Not recording: decode every payload for the live preview.
+- Not recording: decode every payload for the live preview. This was later changed because it was too expensive at higher event rates.
 - Recording: enqueue every copied raw payload into the recorder, but only decode preview payloads when a display frame is due.
 - Recording remains prioritized over visualization.
 
@@ -429,9 +429,8 @@ When `Recording Priority` is on:
 When `Recording Priority` is off:
 
 - every copied raw payload is still offered to the recorder first,
-- preview decodes every payload,
-- this can make live visualization smoother during low-rate recording,
-- this can increase CPU cost at high event rates.
+- preview remains bounded by the current live preview cadence,
+- this avoids returning to the old full-preview decode path that could make the app fall behind.
 
 The default stays on because recording correctness is more important than preview smoothness while actively saving data.
 
@@ -458,6 +457,35 @@ GUI lifecycle smoke test:
 ```text
 GUI_SMOKE rc=0
 ```
+
+## Stage 5 Smooth Preview Worker
+
+Stage 5 mirrors the native Metavision viewer architecture more closely. Native OpenEB feeds camera callbacks into `CDFrameGenerator`, then displays generated frames from a separate loop. The custom GTK app now follows the same separation while staying on the direct V4L2 path:
+
+- the capture thread dequeues, copies, requeues, records, and counts events,
+- a one-item preview queue keeps only the newest sampled payload,
+- the preview worker draws sampled payloads,
+- the display worker fades/publishes the canvas,
+- old preview payloads are dropped by design so capture and recording do not wait for GTK.
+
+Measured defaults:
+
+```text
+KV260_EVENT_MAX_LIVE_DISPLAY_FPS=24
+KV260_EVENT_MAX_LIVE_DRAW_FPS=20
+KV260_EVENT_PREVIEW_CD_WORDS=2048
+Point radius=0
+```
+
+Validation after the patch:
+
+```text
+live_preview_no_recording: buffers=396 decoded=49 skipped=323 preview_errors=0 frames=50 changed_after_2s=27
+recording_priority_on: file_size=56690128 bytes_written=56690128 buffers=302 drops=0 decoded=51 skipped=353
+recording_priority_off: file_size=59296296 bytes_written=59296296 buffers=269 drops=0 decoded=50 skipped=316
+```
+
+The important pass condition is no preview errors, advancing frames, and zero recording drops. `skipped` preview payloads are expected and healthy in this design.
 
 ## Separate Converter Direction
 

@@ -1,6 +1,6 @@
 # KV260 OpenEB Custom Viewer Research
 
-Updated: 2026-05-31
+Updated: 2026-06-02
 
 This note records the research behind the custom KV260 event-camera viewer improvements.
 
@@ -63,6 +63,8 @@ Important OpenEB design points copied into the custom app:
 - `EVT_TIME_HIGH` words carry the high timestamp bits; CD words carry the low 6 timestamp bits.
 - The native viewer uses a 10 ms display accumulation window and a 30 FPS display loop.
 - The SDK Python examples use `PeriodicFrameGenerationAlgorithm(..., accumulation_time_us=10000)` with a dark palette.
+- The native C++ viewer feeds camera callbacks into `CDFrameGenerator`; the generator runs frame generation in a separate worker thread and the UI displays the latest generated frame.
+- Prophesee's frame-generation guide recommends `PeriodicFrameGenerationAlgorithm` when the goal is regular display-rate frames and ignoring intermediate producer results.
 
 ## Official Documentation Used
 
@@ -113,12 +115,25 @@ These are absolute V4L2 driver values on this board. The official IMX636 SDK doc
 
 ## Implementation Decision
 
-The custom viewer keeps the direct V4L2 capture path because it is the most reliable path on this PetaLinux image. The implementation deliberately separates live display from recording playback:
+The custom viewer keeps the direct V4L2 capture path because it is the most reliable path on this PetaLinux image. The implementation deliberately separates capture, recording, preview, and recording playback:
 
-- Live camera preview uses the original immediate draw-and-decay path. Every V4L2 payload is decoded, painted directly into the preview canvas, then faded between frames. This matched the old working viewer and stayed live in the 5-second regression test.
+- Live capture thread does only the latency-sensitive work: dequeue V4L2 payload, copy it, immediately requeue the V4L2 buffer, enqueue recording bytes if recording is active, and count events.
+- Live preview receives only the newest sampled payload through a one-item queue. If the desktop or GTK is slow, old preview payloads are replaced; recording and capture do not wait for preview.
+- A preview worker draws the sampled payload into the live canvas. A display worker fades/publishes that canvas at a bounded display rate.
 - Recording playback uses the OpenEB-inspired timestamp accumulation path. This is where the 10 ms accumulation window is useful, because the event timestamps are available in controlled file chunks.
 
 A previous attempt to use the timestamp accumulator for live V4L2 streaming caused the app to show an initial burst of events and then gradually fade/static on the board. The current code therefore avoids the timestamp renderer in the live hot path.
+
+The June 2026 preview regression was caused by a simpler issue: the first fix protected capture, but the default preview settings still asked Python/Gtk to draw too many points per preview update. The measured stable live defaults are:
+
+```text
+KV260_EVENT_MAX_LIVE_DISPLAY_FPS=24
+KV260_EVENT_MAX_LIVE_DRAW_FPS=20
+KV260_EVENT_PREVIEW_CD_WORDS=2048
+Point radius=0
+```
+
+`Point radius=0` is important on this ARM desktop. Radius `1` paints a 3x3 block for every event point, which costs about nine times more pixel writes than radius `0` and can make preview fall behind. Users can still increase radius manually when inspection is more important than smoothness.
 
 It implements the OpenEB-style parts that matter for daily use:
 

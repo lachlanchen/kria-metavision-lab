@@ -53,9 +53,9 @@ APP_LOCK_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_LOCK_PATH", "/tmp/kv260-e
 APP_SOCKET_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_SOCKET", "/tmp/kv260-event-camera-app.sock")
 DEFAULT_RECORD_QUEUE_BUFFERS = int(os.environ.get("KV260_RECORD_QUEUE_BUFFERS", "256"))
 DEFAULT_LIVE_TRAIL = float(os.environ.get("KV260_EVENT_LIVE_TRAIL", "0.94"))
-MAX_LIVE_DRAW_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_DRAW_FPS", os.environ.get("KV260_EVENT_MAX_LIVE_PREVIEW_FPS", "8")))
+MAX_LIVE_DRAW_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_DRAW_FPS", os.environ.get("KV260_EVENT_MAX_LIVE_PREVIEW_FPS", "20")))
 MAX_LIVE_DISPLAY_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_DISPLAY_FPS", "24"))
-MAX_PREVIEW_CD_WORDS = int(os.environ.get("KV260_EVENT_PREVIEW_CD_WORDS", "4096"))
+MAX_PREVIEW_CD_WORDS = int(os.environ.get("KV260_EVENT_PREVIEW_CD_WORDS", "2048"))
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
@@ -1224,7 +1224,7 @@ class EventFrameRenderer:
         self.fps = 30
         self.palette_name = "Dark"
         self.polarity_mode = "All"
-        self.point_radius = 1
+        self.point_radius = 0
         self.trail = DEFAULT_LIVE_TRAIL
         self.show_osd = True
         self.last_frame = None
@@ -1504,7 +1504,8 @@ class V4L2EventStream:
         self.buffers = []
         self.display = np.zeros((VIEW_H, VIEW_W, 3), dtype=np.uint8)
         self.display_lock = threading.Lock()
-        self.point_radius = 1
+        self.preview_queue = queue.Queue(maxsize=1)
+        self.point_radius = 0
         self.decay = DEFAULT_LIVE_TRAIL
         self.draw_interval = 1.0 / max(1.0, MAX_LIVE_DRAW_FPS)
         self.frame_interval = 1.0 / max(1.0, MAX_LIVE_DISPLAY_FPS)
@@ -1680,7 +1681,7 @@ class V4L2EventStream:
         try:
             self._open_device()
             self.on_status("Live camera open: %s (%sx%s PSE2)" % (self.device, WIDTH, HEIGHT))
-            last_draw_time = 0.0
+            last_preview_submit_time = 0.0
             last_rate_time = time.monotonic()
             last_rate_events = 0
             while not self.stop_event.is_set():
@@ -1704,7 +1705,7 @@ class V4L2EventStream:
                 self.total_buffers += 1
 
                 now = time.monotonic()
-                draw_due = now - last_draw_time > self.draw_interval
+                preview_due = now - last_preview_submit_time > self.draw_interval
                 recording_queued = False
                 with self.record_lock:
                     if self.record_writer:
@@ -1712,13 +1713,11 @@ class V4L2EventStream:
                         if recording_queued:
                             self.record_bytes += len(payload)
 
-                events = 0
-                draw_preview = draw_due
                 try:
-                    events = self._decode_and_draw(payload, draw=draw_preview)
-                    if draw_preview:
-                        last_draw_time = now
-                        self.preview_decoded_buffers += 1
+                    events = self._decode_and_draw(payload, draw=False)
+                    if preview_due:
+                        self._submit_preview_payload(payload)
+                        last_preview_submit_time = now
                     else:
                         self.preview_skipped_buffers += 1
                 except Exception as exc:
@@ -1752,10 +1751,44 @@ class V4L2EventStream:
             self.stop_recording()
             self.on_status("Camera stream closed.")
 
+    def _submit_preview_payload(self, payload):
+        try:
+            self.preview_queue.put_nowait(payload)
+            return
+        except queue.Full:
+            pass
+
+        try:
+            self.preview_queue.get_nowait()
+            self.preview_queue.task_done()
+        except queue.Empty:
+            pass
+
+        try:
+            self.preview_queue.put_nowait(payload)
+        except queue.Full:
+            self.preview_skipped_buffers += 1
+
     def _run_frames(self):
         next_frame_time = time.monotonic()
         while not self.stop_event.is_set():
             now = time.monotonic()
+            latest_payload = None
+            while True:
+                try:
+                    latest_payload = self.preview_queue.get_nowait()
+                    self.preview_queue.task_done()
+                except queue.Empty:
+                    break
+            if latest_payload is not None:
+                try:
+                    self._decode_and_draw(latest_payload, draw=True)
+                    self.preview_decoded_buffers += 1
+                except Exception as exc:
+                    self.preview_errors += 1
+                    if self.preview_errors <= 3:
+                        self.on_status("Preview render failed; capture continues: %s" % exc)
+
             if now < next_frame_time:
                 time.sleep(min(0.02, next_frame_time - now))
                 continue
@@ -2336,7 +2369,7 @@ class EventCameraApp(Gtk.Window):
 
         grid.attach(self.make_label("Point radius"), 2, 1, 1, 1)
         self.radius_spin = Gtk.SpinButton.new_with_range(0, 4, 1)
-        self.radius_spin.set_value(1)
+        self.radius_spin.set_value(0)
         self.radius_spin.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.radius_spin, 3, 1, 1, 1)
 
@@ -2554,7 +2587,7 @@ class EventCameraApp(Gtk.Window):
             fps=self.fps_spin.get_value() if hasattr(self, "fps_spin") else 30,
             palette=palette,
             polarity=polarity,
-            point_radius=self.radius_spin.get_value() if hasattr(self, "radius_spin") else 1,
+            point_radius=self.radius_spin.get_value() if hasattr(self, "radius_spin") else 0,
             trail=self.trail_scale.get_value() if hasattr(self, "trail_scale") else 0.82,
             osd=self.osd_check.get_active() if hasattr(self, "osd_check") else True,
         )

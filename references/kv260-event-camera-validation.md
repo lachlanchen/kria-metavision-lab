@@ -1,6 +1,6 @@
 # KV260 Event Camera Validation
 
-Updated: 2026-06-01
+Updated: 2026-06-02
 
 This note documents the repeatable validation pass for the custom KV260 event camera GUI and recorder.
 
@@ -44,7 +44,7 @@ Recordings are written to:
 Latest report:
 
 ```text
-/tmp/kv260-event-camera-validation/20260601-153214/report.md
+/tmp/kv260-event-camera-validation/20260602-034746/report.md
 ```
 
 Overall result:
@@ -63,7 +63,7 @@ live_preview_no_recording: PASS
 recording_priority_on: PASS
 playback_player: PASS
 recording_priority_off: PASS
-gui_smoke: PASS
+gui_smoke: skipped in this short rerun
 ```
 
 ## Key Results
@@ -101,30 +101,30 @@ This confirms the writer drains cleanly and reports bounded-queue overflow inste
 No-recording live preview:
 
 ```text
-buffers=206
-decoded_buffers=206
-skipped_buffers=0
+buffers=396
+decoded_buffers=49
+skipped_buffers=323
 preview_errors=0
-frames=109
-changed_after_2s=74
-nonblank_frames=109
+frames=50
+changed_after_2s=27
+nonblank_frames=50
 ```
 
-This confirms the smooth preview path is still active when recording is off: every captured payload was decoded for preview and no preview payloads were skipped.
+This confirms the smooth preview path is still active when recording is off. Preview intentionally decodes a bounded latest-sample stream instead of every captured payload, so skipped preview payloads are healthy when buffers, events, frames, and changed frames continue advancing.
 
 Recording with `Recording Priority` on:
 
 ```text
-file_size=4468120
-bytes_written=4468120
-buffers_written=239
+file_size=56690128
+bytes_written=56690128
+buffers_written=302
 queue_pending=0
 drops=0
 write_error=None
-stop_elapsed_s=0.002
-decoded_buffers=180
-skipped_buffers=100
-replay_events_from_first_1MiB=113664
+stop_elapsed_s=0.003
+decoded_buffers=51
+skipped_buffers=353
+replay_events_from_first_1MiB=132140
 replay_nonblank=True
 ```
 
@@ -133,11 +133,11 @@ This confirms the default recording-first mode works as designed: recording wrot
 Playback player:
 
 ```text
-events=43047
+events=49728
 frames=7
 nonblank_frames=7
 observed_playback=True
-stop_elapsed_s=0.093
+stop_elapsed_s=0.085
 ```
 
 This confirms the `Open Recording` code path can open a captured `.pse2.raw`, render nonblank playback frames, and stop cleanly.
@@ -145,20 +145,20 @@ This confirms the `Open Recording` code path can open a captured `.pse2.raw`, re
 Recording with `Recording Priority` off:
 
 ```text
-file_size=2353432
-bytes_written=2353432
-buffers_written=273
+file_size=59296296
+bytes_written=59296296
+buffers_written=269
 queue_pending=0
 drops=0
 write_error=None
-stop_elapsed_s=0.002
-decoded_buffers=315
-skipped_buffers=0
-replay_events_from_first_1MiB=110407
+stop_elapsed_s=0.003
+decoded_buffers=50
+skipped_buffers=316
+replay_events_from_first_1MiB=144321
 replay_nonblank=True
 ```
 
-This confirms the toggle works: recording still had zero drops, and preview decoded every captured payload after recorder enqueue.
+This confirms the non-default toggle still preserves recording correctness. The current smooth-preview architecture remains bounded even with the toggle off; it does not return to the old “decode every payload” behavior because that was the source of the preview lag.
 
 GUI lifecycle:
 
@@ -168,7 +168,7 @@ socket=True
 return_code=0
 ```
 
-This confirms the app still opens on the local board display and exits cleanly through its command socket.
+The latest short rerun skipped the GUI lifecycle check because the live/recording paths were under test. The previous full pass confirmed the app opens on the local board display and exits cleanly through its command socket.
 
 ## Conclusion
 
@@ -176,9 +176,9 @@ The implementation is behaving correctly on the current KV260 image:
 
 - Installed launcher files exist and their script targets are executable.
 - Bias controls are discoverable on `/dev/v4l-subdev3`.
-- Preview is smooth when not recording.
-- Recording priority mode protects the recorder by reducing preview CPU work.
-- Recording priority off restores full preview decoding for low-rate tests.
+- Preview remains live when not recording, with intentional preview decimation.
+- Recording keeps zero raw drops in the measured short runs while preview stays bounded.
+- Recording priority off no longer restores full preview decoding because that older mode could make the preview fall behind.
 - Recorded byte counts match actual file sizes.
 - Writer queue drains to zero on stop.
 - Recorded files replay through the custom EVT2.1 path and render nonblank frames.
@@ -199,13 +199,13 @@ Official Metavision RAW export should remain a separate converter step, not part
 | --- | --- | --- | --- |
 | Desktop/menu launchers | `launcher_probe` | PASS | Verifies installed `.desktop` files and script executability. |
 | Bias controls | `bias_probe` | PASS | Verifies six daily-use bias controls are readable. |
-| Live preview | `live_preview_no_recording` | PASS | Decodes every V4L2 payload when not recording. |
+| Live preview | `live_preview_no_recording` | PASS | Decodes bounded latest samples while V4L2 buffers and events keep advancing. |
 | Recording Priority on | `recording_priority_on` | PASS | Writes all queued bytes, zero drops, decimates preview. |
-| Recording Priority off | `recording_priority_off` | PASS | Writes all queued bytes, zero drops, decodes every payload. |
+| Recording Priority off | `recording_priority_off` | PASS | Writes all queued bytes, zero drops, preview remains bounded. |
 | Writer queue | `writer_sanity` | PASS | Verifies clean drain and explicit bounded-queue drop accounting. |
 | Recording replay decode | recording replay sub-checks | PASS | First 1 MiB decodes into nonblank rendered frames. |
 | Open Recording playback | `playback_player` | PASS | Starts playback, renders frames, stops cleanly. |
-| GUI lifecycle | `gui_smoke` | PASS | GTK app starts on `:0` and exits through the command socket. |
+| GUI lifecycle | `gui_smoke` | previous PASS | GTK app starts on `:0` and exits through the command socket. |
 
 ## Improvement Candidates
 

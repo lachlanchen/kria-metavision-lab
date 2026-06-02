@@ -53,7 +53,7 @@ Usage:
 
   --install      create local user application launchers (default)
   --remove       remove local user application launchers and old desktop shortcuts
-  --global       also create/remove /usr/share/applications/kv260-event-camera.desktop
+  --global       also create/remove /usr/share/applications launchers
                  (requires root privileges)
   --help         show this help
 EOF
@@ -119,7 +119,6 @@ install_entry() {
   remove_entry
   if [ "${DO_GLOBAL}" != "1" ]; then
     write_desktop_entry "${DESKTOP_FILE}" custom
-    write_desktop_entry "${NATIVE_DESKTOP_FILE}" native
     write_desktop_entry "${TRANSFER_DESKTOP_FILE}" transfer
   fi
   update-desktop-database "${DESKTOP_DIR}" >/dev/null 2>&1 || true
@@ -127,23 +126,20 @@ install_entry() {
 
 install_system_entry() {
   tmp_desktop="/tmp/${LAUNCHER_NAME}.$$"
-  tmp_native_desktop="/tmp/${NATIVE_LAUNCHER_NAME}.$$"
   tmp_transfer_desktop="/tmp/${TRANSFER_LAUNCHER_NAME}.$$"
   write_desktop_entry "${tmp_desktop}" custom
-  write_desktop_entry "${tmp_native_desktop}" native
   write_desktop_entry "${tmp_transfer_desktop}" transfer
 
   if [ "${SUDO_PASSWORD}" ]; then
-    printf '%s\n' "${SUDO_PASSWORD}" | sudo -S rm -f "${ROOT_SHORTCUT}" "${NATIVE_ROOT_SHORTCUT}" "${TRANSFER_ROOT_SHORTCUT}" >/dev/null 2>&1 || true
+    printf '%s\n' "${SUDO_PASSWORD}" | sudo -S rm -f "${ROOT_SHORTCUT}" "${NATIVE_ROOT_SHORTCUT}" "${TRANSFER_ROOT_SHORTCUT}" "${NATIVE_SYSTEM_DESKTOP_FILE}" >/dev/null 2>&1 || true
     for old_name in ${OLD_LAUNCHER_NAMES}; do
       printf '%s\n' "${SUDO_PASSWORD}" | sudo -S rm -f "/usr/share/applications/${old_name}" >/dev/null 2>&1 || true
       printf '%s\n' "${SUDO_PASSWORD}" | sudo -S rm -f "${ROOT_SHORTCUT_DIR}/${old_name}" "${ROOT_HOME}/.local/share/applications/${old_name}" >/dev/null 2>&1 || true
     done
     printf '%s\n' "${SUDO_PASSWORD}" | sudo -S install -m 644 "${tmp_desktop}" "${SYSTEM_DESKTOP_FILE}" >/dev/null 2>&1
-    printf '%s\n' "${SUDO_PASSWORD}" | sudo -S install -m 644 "${tmp_native_desktop}" "${NATIVE_SYSTEM_DESKTOP_FILE}" >/dev/null 2>&1
     printf '%s\n' "${SUDO_PASSWORD}" | sudo -S install -m 644 "${tmp_transfer_desktop}" "${TRANSFER_SYSTEM_DESKTOP_FILE}" >/dev/null 2>&1
     update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
-    rm -f "${tmp_desktop}" "${tmp_native_desktop}" "${tmp_transfer_desktop}"
+    rm -f "${tmp_desktop}" "${tmp_transfer_desktop}"
     return 0
   fi
 
@@ -152,18 +148,17 @@ install_system_entry() {
       rm -f "/usr/share/applications/${old_name}"
       rm -f "${ROOT_SHORTCUT_DIR}/${old_name}" "${ROOT_HOME}/.local/share/applications/${old_name}"
     done
-    rm -f "${ROOT_SHORTCUT}" "${NATIVE_ROOT_SHORTCUT}" "${TRANSFER_ROOT_SHORTCUT}"
+    rm -f "${ROOT_SHORTCUT}" "${NATIVE_ROOT_SHORTCUT}" "${TRANSFER_ROOT_SHORTCUT}" "${NATIVE_SYSTEM_DESKTOP_FILE}"
     install -m 644 "${tmp_desktop}" "${SYSTEM_DESKTOP_FILE}"
-    install -m 644 "${tmp_native_desktop}" "${NATIVE_SYSTEM_DESKTOP_FILE}"
     install -m 644 "${tmp_transfer_desktop}" "${TRANSFER_SYSTEM_DESKTOP_FILE}"
     update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
-    rm -f "${tmp_desktop}" "${tmp_native_desktop}" "${tmp_transfer_desktop}"
+    rm -f "${tmp_desktop}" "${tmp_transfer_desktop}"
     return 0
   fi
 
   echo "Global install requested but root password not provided."
   echo "Retry with KV260_SUDO_PASSWORD set, or run as root."
-  rm -f "${tmp_desktop}" "${tmp_native_desktop}" "${tmp_transfer_desktop}"
+  rm -f "${tmp_desktop}" "${tmp_transfer_desktop}"
   return 1
 }
 
@@ -227,10 +222,8 @@ if [ "${MODE}" = "install" ]; then
   fi
   echo "Installed local launcher:"
   [ "${DO_GLOBAL}" != "1" ] && echo "  ${DESKTOP_FILE}"
-  [ "${DO_GLOBAL}" != "1" ] && echo "  ${NATIVE_DESKTOP_FILE}"
   [ "${DO_GLOBAL}" != "1" ] && echo "  ${TRANSFER_DESKTOP_FILE}"
   [ "${DO_GLOBAL}" = "1" ] && echo "  ${SYSTEM_DESKTOP_FILE}"
-  [ "${DO_GLOBAL}" = "1" ] && echo "  ${NATIVE_SYSTEM_DESKTOP_FILE}"
   [ "${DO_GLOBAL}" = "1" ] && echo "  ${TRANSFER_SYSTEM_DESKTOP_FILE}"
 else
   remove_entry

@@ -70,14 +70,14 @@ The center of this repo is a custom KV260 event camera application built for the
 | Desktop launcher | Adds a simple menu item for the board desktop |
 | Recovery scripts | Clears stale viewer and camera state when the board gets stuck |
 
-The desktop installer creates two launchers:
+The desktop installer creates one visible camera launcher plus the file-transfer utility:
 
 | Launcher | Behavior |
 | --- | --- |
 | `KV260 Event Camera` | Opens the custom GUI with close, record, folder, filename, and recovery controls |
-| `Metavision Viewer` | Toggles the native Prophesee `metavision_viewer`: click once to open, click again to close |
+| `KV260 File Transfer` | Opens the two-pane file transfer GUI |
 
-The stable desktop setup keeps only those two system Applications entries and removes duplicate Desktop shortcuts. If Matchbox gets stuck with a busy cursor, use the recovery note in `references/kv260-desktop-stall-recovery.md`.
+The native Prophesee `metavision_viewer` is still available through the Windows Control Center and helper scripts, but it is not installed as a second visible board menu launcher. This keeps the board desktop from showing duplicate event-camera entries. If Matchbox gets stuck with a busy cursor, use the recovery note in `references/kv260-desktop-stall-recovery.md`.
 
 By default, generated event recordings stay outside the repo in `/home/petalinux/event_recordings`; the legacy raw acquisition loop uses `/home/petalinux/event-visual`.
 

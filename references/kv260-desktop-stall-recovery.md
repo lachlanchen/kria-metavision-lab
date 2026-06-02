@@ -20,7 +20,7 @@ Only these Prophesee/KV260 application entries should exist:
 
 ```text
 /usr/share/applications/kv260-event-camera.desktop
-/usr/share/applications/kv260-metavision-viewer.desktop
+/usr/share/applications/kv260-file-transfer.desktop
 ```
 
 There should be no duplicate KV260/Metavision/Prophesee entries under:

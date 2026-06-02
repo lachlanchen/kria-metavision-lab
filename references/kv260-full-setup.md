@@ -23,8 +23,8 @@ Board-side setup:
 - best-effort loads the Prophesee KV260 camera stack if the loader exists,
 - installs the board Applications menu launchers:
   - `KV260 Event Camera`
-  - `Metavision Viewer`
   - `KV260 File Transfer`
+- keeps native `metavision_viewer` available through scripts and the Windows Control Center, but not as a duplicate visible board menu entry,
 - runs the event camera validation script.
 
 Optional Windows setup:
