@@ -377,6 +377,81 @@ function Get-DropDestinationDirectory {
     return $DefaultPath
 }
 
+function Clear-DropFeedback {
+    if ($script:DropHighlightedItem) {
+        $script:DropHighlightedItem.BackColor = $script:DropHighlightedBackColor
+        $script:DropHighlightedItem.ForeColor = $script:DropHighlightedForeColor
+        $script:DropHighlightedItem = $null
+        $script:DropHighlightedBackColor = $null
+        $script:DropHighlightedForeColor = $null
+    }
+    if ($script:DropActiveList) {
+        $script:DropActiveList.BackColor = $script:DropActiveListBackColor
+        $script:DropActiveList = $null
+        $script:DropActiveListBackColor = $null
+    }
+    if (Get-Variable -Name FileDropHint -Scope Script -ErrorAction SilentlyContinue) {
+        $script:FileDropHint.Text = "Drag files or rows onto a pane. Drop on a folder row to copy into that folder."
+        $script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(100, 116, 139)
+    }
+}
+
+function Set-DropFeedback {
+    param(
+        [System.Windows.Forms.ListView]$List,
+        [string]$DefaultPath,
+        [int]$X,
+        [int]$Y,
+        [string]$PaneName
+    )
+
+    if (-not $script:DropActiveList -or -not [object]::ReferenceEquals($script:DropActiveList, $List)) {
+        Clear-DropFeedback
+        $script:DropActiveList = $List
+        $script:DropActiveListBackColor = $List.BackColor
+        $List.BackColor = [System.Drawing.Color]::FromArgb(248, 250, 255)
+    }
+
+    $targetItem = $null
+    $targetPath = $DefaultPath
+    try {
+        $point = $List.PointToClient([System.Drawing.Point]::new($X, $Y))
+        $hit = $List.HitTest($point)
+        if ($hit -and $hit.Item -and $hit.Item.Tag -and $hit.Item.Tag.IsDirectory) {
+            $targetItem = $hit.Item
+            $targetPath = [string]$hit.Item.Tag.Path
+        }
+    } catch {
+        Write-AppLog "Drop feedback resolution failed:`r`n$($_ | Out-String)"
+    }
+
+    if ($script:DropHighlightedItem -and -not [object]::ReferenceEquals($script:DropHighlightedItem, $targetItem)) {
+        $script:DropHighlightedItem.BackColor = $script:DropHighlightedBackColor
+        $script:DropHighlightedItem.ForeColor = $script:DropHighlightedForeColor
+        $script:DropHighlightedItem = $null
+    }
+
+    if ($targetItem -and -not [object]::ReferenceEquals($script:DropHighlightedItem, $targetItem)) {
+        $script:DropHighlightedItem = $targetItem
+        $script:DropHighlightedBackColor = $targetItem.BackColor
+        $script:DropHighlightedForeColor = $targetItem.ForeColor
+        $targetItem.BackColor = [System.Drawing.Color]::FromArgb(254, 243, 199)
+        $targetItem.ForeColor = [System.Drawing.Color]::FromArgb(120, 53, 15)
+    }
+
+    if (Get-Variable -Name FileDropHint -Scope Script -ErrorAction SilentlyContinue) {
+        if ($targetItem) {
+            $script:FileDropHint.Text = "Drop target: $PaneName folder -> $targetPath"
+            $script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(146, 64, 14)
+        } else {
+            $script:FileDropHint.Text = "Drop target: $PaneName current folder -> $targetPath"
+            $script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(29, 78, 216)
+        }
+    }
+
+    return $targetPath
+}
+
 function Get-SelectedFileTags {
     param([System.Windows.Forms.ListView]$List)
     $tags = @()
@@ -984,12 +1059,17 @@ $script:LocalList.Add_ItemDrag({
 $script:LocalList.Add_DragEnter({
     if ($_.Data.GetDataPresent("BoardPaths")) {
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+        [void](Set-DropFeedback -List $script:LocalList -DefaultPath $script:LocalPathText.Text.Trim() -X $_.X -Y $_.Y -PaneName "Windows")
     }
 })
 $script:LocalList.Add_DragOver({
     if ($_.Data.GetDataPresent("BoardPaths")) {
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+        [void](Set-DropFeedback -List $script:LocalList -DefaultPath $script:LocalPathText.Text.Trim() -X $_.X -Y $_.Y -PaneName "Windows")
     }
+})
+$script:LocalList.Add_DragLeave({
+    Clear-DropFeedback
 })
 $script:LocalList.Add_DragDrop({
     if ($_.Data.GetDataPresent("BoardPaths")) {
@@ -999,6 +1079,7 @@ $script:LocalList.Add_DragDrop({
             -DefaultPath $script:LocalPathText.Text.Trim() `
             -X $_.X `
             -Y $_.Y
+        Clear-DropFeedback
         Download-RemotePaths $paths $target
     }
 })
@@ -1028,12 +1109,17 @@ $script:RemoteList.Add_ItemDrag({
 $script:RemoteList.Add_DragEnter({
     if ($_.Data.GetDataPresent("HostPaths") -or $_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+        [void](Set-DropFeedback -List $script:RemoteList -DefaultPath $script:RemotePathText.Text.Trim() -X $_.X -Y $_.Y -PaneName "KV260")
     }
 })
 $script:RemoteList.Add_DragOver({
     if ($_.Data.GetDataPresent("HostPaths") -or $_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+        [void](Set-DropFeedback -List $script:RemoteList -DefaultPath $script:RemotePathText.Text.Trim() -X $_.X -Y $_.Y -PaneName "KV260")
     }
+})
+$script:RemoteList.Add_DragLeave({
+    Clear-DropFeedback
 })
 $script:RemoteList.Add_DragDrop({
     $target = Get-DropDestinationDirectory `
@@ -1041,6 +1127,7 @@ $script:RemoteList.Add_DragDrop({
         -DefaultPath $script:RemotePathText.Text.Trim() `
         -X $_.X `
         -Y $_.Y
+    Clear-DropFeedback
     if ($_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
         $paths = [string[]]$_.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)
         Upload-LocalPaths $paths $target
@@ -1080,6 +1167,15 @@ $openBoardTransfer.Location = New-Object System.Drawing.Point(652, 334)
 $openBoardTransfer.Size = New-Object System.Drawing.Size(176, 34)
 $openBoardTransfer.Add_Click({ Open-RemoteApp "file-transfer" "KV260 File Transfer" })
 $filesTab.Controls.Add($openBoardTransfer)
+
+$script:FileDropHint = New-Object System.Windows.Forms.Label
+$script:FileDropHint.Text = "Drag files or rows onto a pane. Drop on a folder row to copy into that folder."
+$script:FileDropHint.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+$script:FileDropHint.ForeColor = [System.Drawing.Color]::FromArgb(100, 116, 139)
+$script:FileDropHint.Location = New-Object System.Drawing.Point(14, 374)
+$script:FileDropHint.Size = New-Object System.Drawing.Size(1020, 20)
+$script:FileDropHint.Anchor = "Top,Left,Right"
+$filesTab.Controls.Add($script:FileDropHint)
 
 $notebookTab = New-Object System.Windows.Forms.TabPage
 $notebookTab.Text = "Notebook And Power"

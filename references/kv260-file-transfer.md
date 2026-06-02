@@ -162,3 +162,10 @@ Update after icon/drop-target pass:
 - Windows Control Center Files tab now uses colored icons for folders and common file classes: text, code, image, video, audio, archives, PDF, Office, tables, and capture/raw files.
 - Folder rows are styled more strongly and show their full path as a tooltip.
 - Drag-and-drop is destination-aware: dropping onto empty pane space copies into the current folder, while dropping onto a folder row/icon copies directly into that folder.
+
+Update after drag feedback pass:
+
+- Dragging over a valid pane now gives immediate visual feedback.
+- The target pane changes to a subtle active background while a compatible item is dragged over it.
+- Folder rows highlight when they are the active drop target.
+- A hint line in the Files tab shows the current destination folder while dragging.
