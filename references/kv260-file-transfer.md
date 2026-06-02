@@ -169,3 +169,10 @@ Update after drag feedback pass:
 - The target pane changes to a subtle active background while a compatible item is dragged over it.
 - Folder rows highlight when they are the active drop target.
 - A hint line in the Files tab shows the current destination folder while dragging.
+
+Update after Control Center visual polish pass:
+
+- Action buttons now use drawn icons and hover/down colors.
+- Camera, Applications, Files, Notebook, and Power controls have icon-specific buttons.
+- The header now has a compact KV260 visual mark instead of plain text only.
+- Added `-UiSelfTest` to validate the icon/button factory without opening the full window.

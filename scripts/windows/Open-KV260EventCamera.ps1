@@ -3,7 +3,8 @@ param(
     [string]$HostAlias = "petalinux-kv260",
     [string]$RemoteProject = "/home/petalinux/Projects/kria-kv260-starter",
     [switch]$CheckOnly,
-    [switch]$FilesSelfTest
+    [switch]$FilesSelfTest,
+    [switch]$UiSelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -194,6 +195,167 @@ function Initialize-FileImages {
     $script:FileImageList = $images
 }
 
+function Shift-Color {
+    param(
+        [System.Drawing.Color]$Color,
+        [int]$Delta
+    )
+    $r = [Math]::Max(0, [Math]::Min(255, $Color.R + $Delta))
+    $g = [Math]::Max(0, [Math]::Min(255, $Color.G + $Delta))
+    $b = [Math]::Max(0, [Math]::Min(255, $Color.B + $Delta))
+    return [System.Drawing.Color]::FromArgb($r, $g, $b)
+}
+
+function New-ActionIconImage {
+    param([string]$Icon)
+    $bitmap = [System.Drawing.Bitmap]::new(22, 22)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $graphics.Clear([System.Drawing.Color]::Transparent)
+
+    $pen = [System.Drawing.Pen]::new([System.Drawing.Color]::White, 2.0)
+    $thinPen = [System.Drawing.Pen]::new([System.Drawing.Color]::White, 1.5)
+    $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
+    $softBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(210, 255, 255, 255))
+
+    switch ($Icon) {
+        "camera" {
+            $graphics.DrawRectangle($pen, 4, 7, 14, 10)
+            $graphics.DrawRectangle($pen, 7, 5, 5, 3)
+            $graphics.DrawEllipse($thinPen, 9, 9, 5, 5)
+        }
+        "screen" {
+            $graphics.DrawRectangle($pen, 3, 5, 16, 11)
+            $graphics.DrawLine($pen, 8, 19, 14, 19)
+            $graphics.DrawLine($thinPen, 11, 16, 11, 19)
+        }
+        "eye" {
+            $graphics.DrawArc($pen, 3, 7, 16, 9, 0, 180)
+            $graphics.DrawArc($pen, 3, 6, 16, 9, 0, -180)
+            $graphics.FillEllipse($brush, 9, 9, 4, 4)
+        }
+        "stop" {
+            $graphics.FillRectangle($brush, 6, 6, 10, 10)
+        }
+        "status" {
+            $graphics.FillEllipse($brush, 4, 13, 3, 3)
+            $graphics.FillEllipse($brush, 10, 9, 3, 7)
+            $graphics.FillEllipse($brush, 16, 5, 3, 11)
+        }
+        "folder" {
+            $graphics.FillRectangle($softBrush, 3, 7, 16, 10)
+            $graphics.FillRectangle($brush, 4, 5, 7, 4)
+        }
+        "terminal" {
+            $graphics.DrawRectangle($pen, 3, 5, 16, 14)
+            $graphics.DrawLine($thinPen, 6, 9, 10, 12)
+            $graphics.DrawLine($thinPen, 10, 12, 6, 15)
+            $graphics.DrawLine($thinPen, 12, 16, 17, 16)
+        }
+        "edit" {
+            $graphics.DrawLine($pen, 6, 16, 15, 7)
+            $graphics.DrawLine($pen, 14, 6, 17, 9)
+            $graphics.DrawLine($thinPen, 5, 17, 9, 16)
+        }
+        "palette" {
+            $graphics.DrawEllipse($pen, 4, 4, 15, 14)
+            $graphics.FillEllipse($brush, 8, 7, 2, 2)
+            $graphics.FillEllipse($brush, 13, 7, 2, 2)
+            $graphics.FillEllipse($brush, 10, 12, 2, 2)
+        }
+        "touch" {
+            $graphics.DrawRectangle($thinPen, 5, 3, 12, 16)
+            $graphics.DrawLine($pen, 11, 8, 11, 16)
+            $graphics.DrawLine($thinPen, 8, 14, 11, 17)
+            $graphics.DrawLine($thinPen, 14, 14, 11, 17)
+        }
+        "apps" {
+            $graphics.FillRectangle($brush, 4, 4, 5, 5)
+            $graphics.FillRectangle($softBrush, 13, 4, 5, 5)
+            $graphics.FillRectangle($softBrush, 4, 13, 5, 5)
+            $graphics.FillRectangle($brush, 13, 13, 5, 5)
+        }
+        "desktop" {
+            $graphics.DrawRectangle($pen, 3, 5, 16, 11)
+            $graphics.FillRectangle($brush, 8, 18, 6, 2)
+        }
+        "transfer" {
+            $graphics.DrawLine($pen, 5, 8, 16, 8)
+            $graphics.DrawLine($pen, 13, 5, 16, 8)
+            $graphics.DrawLine($pen, 13, 11, 16, 8)
+            $graphics.DrawLine($pen, 17, 14, 6, 14)
+            $graphics.DrawLine($pen, 9, 11, 6, 14)
+            $graphics.DrawLine($pen, 9, 17, 6, 14)
+        }
+        "upload" {
+            $graphics.DrawLine($pen, 11, 16, 11, 5)
+            $graphics.DrawLine($pen, 7, 9, 11, 5)
+            $graphics.DrawLine($pen, 15, 9, 11, 5)
+            $graphics.DrawLine($thinPen, 5, 18, 17, 18)
+        }
+        "download" {
+            $graphics.DrawLine($pen, 11, 5, 11, 16)
+            $graphics.DrawLine($pen, 7, 12, 11, 16)
+            $graphics.DrawLine($pen, 15, 12, 11, 16)
+            $graphics.DrawLine($thinPen, 5, 18, 17, 18)
+        }
+        "refresh" {
+            $graphics.DrawArc($pen, 5, 5, 12, 12, 35, 245)
+            $graphics.DrawLine($pen, 15, 5, 18, 5)
+            $graphics.DrawLine($pen, 18, 5, 18, 8)
+        }
+        "plus" {
+            $graphics.DrawLine($pen, 11, 5, 11, 17)
+            $graphics.DrawLine($pen, 5, 11, 17, 11)
+        }
+        "open" {
+            $graphics.DrawRectangle($thinPen, 4, 7, 14, 12)
+            $graphics.DrawLine($pen, 8, 14, 16, 6)
+            $graphics.DrawLine($pen, 12, 6, 16, 6)
+            $graphics.DrawLine($pen, 16, 6, 16, 10)
+        }
+        "notebook" {
+            $graphics.DrawRectangle($pen, 5, 4, 13, 16)
+            $graphics.DrawLine($thinPen, 8, 4, 8, 20)
+            $graphics.DrawLine($thinPen, 10, 8, 16, 8)
+            $graphics.DrawLine($thinPen, 10, 12, 16, 12)
+        }
+        "reboot" {
+            $graphics.DrawArc($pen, 5, 5, 12, 12, 20, 310)
+            $graphics.DrawLine($pen, 11, 3, 15, 6)
+            $graphics.DrawLine($pen, 15, 6, 11, 9)
+        }
+        "power" {
+            $graphics.DrawLine($pen, 11, 4, 11, 11)
+            $graphics.DrawArc($pen, 5, 8, 12, 12, 135, 270)
+        }
+        default {
+            $graphics.FillEllipse($brush, 5, 5, 12, 12)
+        }
+    }
+
+    $pen.Dispose()
+    $thinPen.Dispose()
+    $brush.Dispose()
+    $softBrush.Dispose()
+    $graphics.Dispose()
+    return $bitmap
+}
+
+function Initialize-ActionImages {
+    $images = New-Object System.Windows.Forms.ImageList
+    $images.ImageSize = [System.Drawing.Size]::new(22, 22)
+    $images.ColorDepth = [System.Windows.Forms.ColorDepth]::Depth32Bit
+    foreach ($icon in @(
+        "camera", "screen", "eye", "stop", "status", "folder", "terminal", "edit",
+        "palette", "touch", "apps", "desktop", "transfer", "upload", "download",
+        "refresh", "plus", "open", "notebook", "reboot", "power"
+    )) {
+        [void]$images.Images.Add($icon, (New-ActionIconImage -Icon $icon))
+    }
+    $script:ActionImageList = $images
+}
+
 function Get-FileImageKey {
     param([string]$Name, [bool]$IsDirectory)
     if ($IsDirectory) {
@@ -242,6 +404,7 @@ function Get-FileTypeLabel {
 }
 
 Initialize-FileImages
+Initialize-ActionImages
 
 function Add-Log {
     param([string]$Text)
@@ -873,22 +1036,35 @@ $title = New-Object System.Windows.Forms.Label
 $title.Text = "KV260 Control Center"
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 21, [System.Drawing.FontStyle]::Bold)
 $title.ForeColor = [System.Drawing.Color]::FromArgb(15, 23, 42)
-$title.Location = New-Object System.Drawing.Point(24, 18)
+$title.Location = New-Object System.Drawing.Point(84, 16)
 $title.Size = New-Object System.Drawing.Size(520, 38)
 $form.Controls.Add($title)
+
+$brandPanel = New-Object System.Windows.Forms.Panel
+$brandPanel.Location = New-Object System.Drawing.Point(24, 16)
+$brandPanel.Size = New-Object System.Drawing.Size(46, 46)
+$brandPanel.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+$brandPanel.Cursor = [System.Windows.Forms.Cursors]::Default
+$brandIcon = New-Object System.Windows.Forms.PictureBox
+$brandIcon.Image = $script:ActionImageList.Images["transfer"]
+$brandIcon.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::CenterImage
+$brandIcon.Dock = [System.Windows.Forms.DockStyle]::Fill
+$brandPanel.Controls.Add($brandIcon)
+$form.Controls.Add($brandPanel)
 
 $subtitle = New-Object System.Windows.Forms.Label
 $subtitle.Text = "Launch the event camera, board tools, notebooks, and system actions from one Windows entry point."
 $subtitle.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
-$subtitle.Location = New-Object System.Drawing.Point(26, 58)
-$subtitle.Size = New-Object System.Drawing.Size(1040, 22)
+$subtitle.Location = New-Object System.Drawing.Point(86, 54)
+$subtitle.Size = New-Object System.Drawing.Size(980, 22)
 $form.Controls.Add($subtitle)
 
 function New-Button {
     param(
         [string]$Text,
-        [System.Drawing.Color]$BackColor
+        [System.Drawing.Color]$BackColor,
+        [string]$Icon = ""
     )
     $button = New-Object System.Windows.Forms.Button
     $button.Text = $Text
@@ -898,6 +1074,17 @@ function New-Button {
     $button.ForeColor = [System.Drawing.Color]::White
     $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $button.FlatAppearance.BorderSize = 0
+    $button.FlatAppearance.MouseOverBackColor = Shift-Color -Color $BackColor -Delta 18
+    $button.FlatAppearance.MouseDownBackColor = Shift-Color -Color $BackColor -Delta -24
+    $button.Margin = New-Object System.Windows.Forms.Padding(6)
+    $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $button.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $button.ImageAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $button.TextImageRelation = [System.Windows.Forms.TextImageRelation]::ImageBeforeText
+    $button.Padding = New-Object System.Windows.Forms.Padding(10, 0, 10, 0)
+    if ($Icon -and $script:ActionImageList.Images.ContainsKey($Icon)) {
+        $button.Image = $script:ActionImageList.Images[$Icon]
+    }
     return $button
 }
 
@@ -906,9 +1093,10 @@ function Add-ButtonToPanel {
         [System.Windows.Forms.FlowLayoutPanel]$Panel,
         [string]$Text,
         [System.Drawing.Color]$Color,
-        [scriptblock]$Action
+        [scriptblock]$Action,
+        [string]$Icon = ""
     )
-    $button = New-Button $Text $Color
+    $button = New-Button $Text $Color $Icon
     $button.Add_Click($Action)
     $Panel.Controls.Add($button)
 }
@@ -920,6 +1108,16 @@ function New-FlowPanel {
     $panel.AutoScroll = $true
     $panel.BackColor = [System.Drawing.Color]::White
     return $panel
+}
+
+if ($UiSelfTest) {
+    $probe = New-Button "Probe Button" ([System.Drawing.Color]::FromArgb(37, 99, 235)) "camera"
+    Write-Host "ACTION_IMAGES=$($script:ActionImageList.Images.Count)"
+    Write-Host "PROBE_HAS_IMAGE=$($null -ne $probe.Image)"
+    Write-Host "PROBE_TEXT=$($probe.Text)"
+    $probe.Dispose()
+    $form.Dispose()
+    exit 0
 }
 
 $tabs = New-Object System.Windows.Forms.TabControl
@@ -935,11 +1133,11 @@ $cameraPanel = New-FlowPanel
 $cameraTab.Controls.Add($cameraPanel)
 $tabs.TabPages.Add($cameraTab)
 
-Add-ButtonToPanel $cameraPanel "Open Camera On Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235)) { Start-WindowsX11 }
-Add-ButtonToPanel $cameraPanel "Open Camera On KV260" ([System.Drawing.Color]::FromArgb(5, 150, 105)) { Start-BoardDesktop }
-Add-ButtonToPanel $cameraPanel "Native Metavision Viewer" ([System.Drawing.Color]::FromArgb(79, 70, 229)) { Open-RemoteApp "native-metavision" "Native Metavision Viewer" }
-Add-ButtonToPanel $cameraPanel "Stop Camera Viewers" ([System.Drawing.Color]::FromArgb(220, 38, 38)) { Stop-AllViewers }
-Add-ButtonToPanel $cameraPanel "Status" ([System.Drawing.Color]::FromArgb(71, 85, 105)) { Refresh-Status }
+Add-ButtonToPanel $cameraPanel "Open Camera On Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235)) { Start-WindowsX11 } "screen"
+Add-ButtonToPanel $cameraPanel "Open Camera On KV260" ([System.Drawing.Color]::FromArgb(5, 150, 105)) { Start-BoardDesktop } "camera"
+Add-ButtonToPanel $cameraPanel "Native Metavision Viewer" ([System.Drawing.Color]::FromArgb(79, 70, 229)) { Open-RemoteApp "native-metavision" "Native Metavision Viewer" } "eye"
+Add-ButtonToPanel $cameraPanel "Stop Camera Viewers" ([System.Drawing.Color]::FromArgb(220, 38, 38)) { Stop-AllViewers } "stop"
+Add-ButtonToPanel $cameraPanel "Status" ([System.Drawing.Color]::FromArgb(71, 85, 105)) { Refresh-Status } "status"
 
 $appsTab = New-Object System.Windows.Forms.TabPage
 $appsTab.Text = "Applications"
@@ -947,15 +1145,15 @@ $appsPanel = New-FlowPanel
 $appsTab.Controls.Add($appsPanel)
 $tabs.TabPages.Add($appsTab)
 
-Add-ButtonToPanel $appsPanel "File Manager" ([System.Drawing.Color]::FromArgb(14, 116, 144)) { Open-RemoteApp "pcmanfm" "File Manager" }
-Add-ButtonToPanel $appsPanel "Terminal" ([System.Drawing.Color]::FromArgb(51, 65, 85)) { Open-RemoteApp "terminal" "Terminal" }
-Add-ButtonToPanel $appsPanel "RXVT Terminal" ([System.Drawing.Color]::FromArgb(71, 85, 105)) { Open-RemoteApp "terminal-rxvt" "RXVT Terminal" }
-Add-ButtonToPanel $appsPanel "Text Editor" ([System.Drawing.Color]::FromArgb(22, 101, 52)) { Open-RemoteApp "editor" "L3afpad Text Editor" }
-Add-ButtonToPanel $appsPanel "Appearance" ([System.Drawing.Color]::FromArgb(124, 58, 237)) { Open-RemoteApp "appearance" "Appearance" }
-Add-ButtonToPanel $appsPanel "Touch Calibrator" ([System.Drawing.Color]::FromArgb(217, 119, 6)) { Open-RemoteApp "touch-calibrator" "Touch Calibrator" }
-Add-ButtonToPanel $appsPanel "Preferred Apps" ([System.Drawing.Color]::FromArgb(8, 145, 178)) { Open-RemoteApp "preferred-apps" "Preferred Applications" }
-Add-ButtonToPanel $appsPanel "Desktop Preferences" ([System.Drawing.Color]::FromArgb(67, 56, 202)) { Open-RemoteApp "desktop-preferences" "Desktop Preferences" }
-Add-ButtonToPanel $appsPanel "File Transfer GUI" ([System.Drawing.Color]::FromArgb(37, 99, 235)) { Open-RemoteApp "file-transfer" "KV260 File Transfer" }
+Add-ButtonToPanel $appsPanel "File Manager" ([System.Drawing.Color]::FromArgb(14, 116, 144)) { Open-RemoteApp "pcmanfm" "File Manager" } "folder"
+Add-ButtonToPanel $appsPanel "Terminal" ([System.Drawing.Color]::FromArgb(51, 65, 85)) { Open-RemoteApp "terminal" "Terminal" } "terminal"
+Add-ButtonToPanel $appsPanel "RXVT Terminal" ([System.Drawing.Color]::FromArgb(71, 85, 105)) { Open-RemoteApp "terminal-rxvt" "RXVT Terminal" } "terminal"
+Add-ButtonToPanel $appsPanel "Text Editor" ([System.Drawing.Color]::FromArgb(22, 101, 52)) { Open-RemoteApp "editor" "L3afpad Text Editor" } "edit"
+Add-ButtonToPanel $appsPanel "Appearance" ([System.Drawing.Color]::FromArgb(124, 58, 237)) { Open-RemoteApp "appearance" "Appearance" } "palette"
+Add-ButtonToPanel $appsPanel "Touch Calibrator" ([System.Drawing.Color]::FromArgb(217, 119, 6)) { Open-RemoteApp "touch-calibrator" "Touch Calibrator" } "touch"
+Add-ButtonToPanel $appsPanel "Preferred Apps" ([System.Drawing.Color]::FromArgb(8, 145, 178)) { Open-RemoteApp "preferred-apps" "Preferred Applications" } "apps"
+Add-ButtonToPanel $appsPanel "Desktop Preferences" ([System.Drawing.Color]::FromArgb(67, 56, 202)) { Open-RemoteApp "desktop-preferences" "Desktop Preferences" } "desktop"
+Add-ButtonToPanel $appsPanel "File Transfer GUI" ([System.Drawing.Color]::FromArgb(37, 99, 235)) { Open-RemoteApp "file-transfer" "KV260 File Transfer" } "transfer"
 
 $filesTab = New-Object System.Windows.Forms.TabPage
 $filesTab.Text = "Files"
@@ -987,7 +1185,7 @@ $filesTab.Controls.Add($remoteLabel)
 $script:LocalPathText = New-Object System.Windows.Forms.TextBox
 $script:LocalPathText.Text = [Environment]::GetFolderPath("MyDocuments")
 $script:LocalPathText.Location = New-Object System.Drawing.Point(532, 68)
-$script:LocalPathText.Size = New-Object System.Drawing.Size(336, 24)
+$script:LocalPathText.Size = New-Object System.Drawing.Size(326, 24)
 $script:LocalPathText.Anchor = "Top,Left,Right"
 $script:LocalPathText.Add_KeyDown({
     if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
@@ -997,16 +1195,16 @@ $script:LocalPathText.Add_KeyDown({
 })
 $filesTab.Controls.Add($script:LocalPathText)
 
-$localBrowse = New-Button "Browse" ([System.Drawing.Color]::FromArgb(14, 116, 144))
-$localBrowse.Size = New-Object System.Drawing.Size(84, 28)
-$localBrowse.Location = New-Object System.Drawing.Point(876, 66)
+$localBrowse = New-Button "Browse" ([System.Drawing.Color]::FromArgb(14, 116, 144)) "folder"
+$localBrowse.Size = New-Object System.Drawing.Size(96, 28)
+$localBrowse.Location = New-Object System.Drawing.Point(866, 66)
 $localBrowse.Anchor = "Top,Right"
 $localBrowse.Add_Click({ Browse-LocalFolder })
 $filesTab.Controls.Add($localBrowse)
 
-$localUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105))
-$localUp.Size = New-Object System.Drawing.Size(48, 28)
-$localUp.Location = New-Object System.Drawing.Point(966, 66)
+$localUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "upload"
+$localUp.Size = New-Object System.Drawing.Size(58, 28)
+$localUp.Location = New-Object System.Drawing.Point(970, 66)
 $localUp.Anchor = "Top,Right"
 $localUp.Add_Click({ Set-LocalParent })
 $filesTab.Controls.Add($localUp)
@@ -1024,15 +1222,15 @@ $script:RemotePathText.Add_KeyDown({
 })
 $filesTab.Controls.Add($script:RemotePathText)
 
-$remoteRefresh = New-Button "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105))
-$remoteRefresh.Size = New-Object System.Drawing.Size(82, 28)
-$remoteRefresh.Location = New-Object System.Drawing.Point(382, 66)
+$remoteRefresh = New-Button "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "refresh"
+$remoteRefresh.Size = New-Object System.Drawing.Size(90, 28)
+$remoteRefresh.Location = New-Object System.Drawing.Point(380, 66)
 $remoteRefresh.Add_Click({ Refresh-RemoteFiles })
 $filesTab.Controls.Add($remoteRefresh)
 
-$remoteUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105))
-$remoteUp.Size = New-Object System.Drawing.Size(48, 28)
-$remoteUp.Location = New-Object System.Drawing.Point(470, 66)
+$remoteUp = New-Button "Up" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "upload"
+$remoteUp.Size = New-Object System.Drawing.Size(54, 28)
+$remoteUp.Location = New-Object System.Drawing.Point(476, 66)
 $remoteUp.Add_Click({ Set-RemoteParent })
 $filesTab.Controls.Add($remoteUp)
 
@@ -1138,33 +1336,33 @@ $script:RemoteList.Add_DragDrop({
 })
 $filesTab.Controls.Add($script:RemoteList)
 
-$uploadButton = New-Button "Copy Windows -> KV260" ([System.Drawing.Color]::FromArgb(5, 150, 105))
+$uploadButton = New-Button "Copy Windows -> KV260" ([System.Drawing.Color]::FromArgb(5, 150, 105)) "upload"
 $uploadButton.Location = New-Object System.Drawing.Point(14, 334)
-$uploadButton.Size = New-Object System.Drawing.Size(154, 34)
+$uploadButton.Size = New-Object System.Drawing.Size(190, 34)
 $uploadButton.Add_Click({ Upload-SelectedFiles })
 $filesTab.Controls.Add($uploadButton)
 
-$downloadButton = New-Button "Copy KV260 -> Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235))
-$downloadButton.Location = New-Object System.Drawing.Point(174, 334)
-$downloadButton.Size = New-Object System.Drawing.Size(166, 34)
+$downloadButton = New-Button "Copy KV260 -> Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235)) "download"
+$downloadButton.Location = New-Object System.Drawing.Point(210, 334)
+$downloadButton.Size = New-Object System.Drawing.Size(190, 34)
 $downloadButton.Add_Click({ Download-SelectedFiles })
 $filesTab.Controls.Add($downloadButton)
 
-$refreshFilesButton = New-Button "Refresh Both" ([System.Drawing.Color]::FromArgb(71, 85, 105))
-$refreshFilesButton.Location = New-Object System.Drawing.Point(346, 334)
-$refreshFilesButton.Size = New-Object System.Drawing.Size(116, 34)
+$refreshFilesButton = New-Button "Refresh Both" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "refresh"
+$refreshFilesButton.Location = New-Object System.Drawing.Point(406, 334)
+$refreshFilesButton.Size = New-Object System.Drawing.Size(130, 34)
 $refreshFilesButton.Add_Click({ Refresh-FileBrowsers })
 $filesTab.Controls.Add($refreshFilesButton)
 
-$newRemoteFolder = New-Button "New KV260 Folder" ([System.Drawing.Color]::FromArgb(217, 119, 6))
-$newRemoteFolder.Location = New-Object System.Drawing.Point(500, 334)
-$newRemoteFolder.Size = New-Object System.Drawing.Size(146, 34)
+$newRemoteFolder = New-Button "New KV260 Folder" ([System.Drawing.Color]::FromArgb(217, 119, 6)) "plus"
+$newRemoteFolder.Location = New-Object System.Drawing.Point(542, 334)
+$newRemoteFolder.Size = New-Object System.Drawing.Size(166, 34)
 $newRemoteFolder.Add_Click({ New-RemoteFolder })
 $filesTab.Controls.Add($newRemoteFolder)
 
-$openBoardTransfer = New-Button "Open Board Transfer GUI" ([System.Drawing.Color]::FromArgb(79, 70, 229))
-$openBoardTransfer.Location = New-Object System.Drawing.Point(652, 334)
-$openBoardTransfer.Size = New-Object System.Drawing.Size(176, 34)
+$openBoardTransfer = New-Button "Open Board Transfer GUI" ([System.Drawing.Color]::FromArgb(79, 70, 229)) "open"
+$openBoardTransfer.Location = New-Object System.Drawing.Point(714, 334)
+$openBoardTransfer.Size = New-Object System.Drawing.Size(212, 34)
 $openBoardTransfer.Add_Click({ Open-RemoteApp "file-transfer" "KV260 File Transfer" })
 $filesTab.Controls.Add($openBoardTransfer)
 
@@ -1183,10 +1381,10 @@ $notebookPanel = New-FlowPanel
 $notebookTab.Controls.Add($notebookPanel)
 $tabs.TabPages.Add($notebookTab)
 
-Add-ButtonToPanel $notebookPanel "Open Jupyter Notebook" ([System.Drawing.Color]::FromArgb(234, 88, 12)) { Start-Jupyter }
-Add-ButtonToPanel $notebookPanel "Stop Jupyter" ([System.Drawing.Color]::FromArgb(194, 65, 12)) { Stop-Jupyter }
-Add-ButtonToPanel $notebookPanel "Reboot KV260" ([System.Drawing.Color]::FromArgb(185, 28, 28)) { Reboot-KV260 }
-Add-ButtonToPanel $notebookPanel "Shutdown KV260" ([System.Drawing.Color]::FromArgb(127, 29, 29)) { Shutdown-KV260 }
+Add-ButtonToPanel $notebookPanel "Open Jupyter Notebook" ([System.Drawing.Color]::FromArgb(234, 88, 12)) { Start-Jupyter } "notebook"
+Add-ButtonToPanel $notebookPanel "Stop Jupyter" ([System.Drawing.Color]::FromArgb(194, 65, 12)) { Stop-Jupyter } "stop"
+Add-ButtonToPanel $notebookPanel "Reboot KV260" ([System.Drawing.Color]::FromArgb(185, 28, 28)) { Reboot-KV260 } "reboot"
+Add-ButtonToPanel $notebookPanel "Shutdown KV260" ([System.Drawing.Color]::FromArgb(127, 29, 29)) { Shutdown-KV260 } "power"
 
 $script:OutputBox = New-Object System.Windows.Forms.TextBox
 $script:OutputBox.Location = New-Object System.Drawing.Point(24, 524)
