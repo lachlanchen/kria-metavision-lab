@@ -52,6 +52,7 @@ DEFAULT_RECORD_DIR = os.path.expanduser(
 APP_LOCK_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_LOCK_PATH", "/tmp/kv260-event-camera-app.lock")
 APP_SOCKET_PATH = os.environ.get("KV260_EVENT_CAMERA_APP_SOCKET", "/tmp/kv260-event-camera-app.sock")
 DEFAULT_RECORD_QUEUE_BUFFERS = int(os.environ.get("KV260_RECORD_QUEUE_BUFFERS", "256"))
+DEFAULT_LIVE_TRAIL = float(os.environ.get("KV260_EVENT_LIVE_TRAIL", "0.94"))
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
@@ -1220,7 +1221,7 @@ class EventFrameRenderer:
         self.palette_name = "Dark"
         self.polarity_mode = "All"
         self.point_radius = 1
-        self.trail = 0.82
+        self.trail = DEFAULT_LIVE_TRAIL
         self.show_osd = True
         self.last_frame = None
         self.last_batch_wall_time = 0.0
@@ -1498,9 +1499,10 @@ class V4L2EventStream:
         self.buffers = []
         self.display = np.zeros((VIEW_H, VIEW_W, 3), dtype=np.uint8)
         self.point_radius = 1
-        self.decay = 0.82
+        self.decay = DEFAULT_LIVE_TRAIL
         self.frame_interval = 0.033
         self.polarity_mode = "All"
+        self.bg_color = PALETTES["Dark"]["bg"]
         self.on_color = (60, 210, 130)
         self.off_color = (230, 80, 60)
         self.record_lock = threading.Lock()
@@ -1525,6 +1527,7 @@ class V4L2EventStream:
         if polarity in ("All", "ON", "OFF"):
             self.polarity_mode = polarity
         palette = PALETTES.get(settings.get("palette", "Dark"), PALETTES["Dark"])
+        self.bg_color = palette["bg"]
         self.on_color = palette["on"]
         self.off_color = palette["off"]
 
@@ -1536,7 +1539,7 @@ class V4L2EventStream:
         self.preview_errors = 0
         self.preview_decoded_buffers = 0
         self.preview_skipped_buffers = 0
-        self.display[:] = 0
+        self._reset_display()
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
@@ -1718,7 +1721,7 @@ class V4L2EventStream:
                 if frame_due:
                     last_frame_time = now
                     self.on_frame(self.display.copy())
-                    self.display[:] = (self.display.astype(np.float32) * self.decay).astype(np.uint8)
+                    self._fade_display()
                 if now - last_rate_time >= 1.0:
                     delta_events = self.total_events - last_rate_events
                     last_rate_events = self.total_events
@@ -1740,6 +1743,16 @@ class V4L2EventStream:
             self._close_device()
             self.stop_recording()
             self.on_status("Camera stream closed.")
+
+    def _reset_display(self):
+        self.display[:] = np.array(self.bg_color, dtype=np.uint8)
+
+    def _fade_display(self):
+        bg = np.array(self.bg_color, dtype=np.float32)
+        self.display[:] = (
+            self.display.astype(np.float32) * self.decay
+            + bg * (1.0 - self.decay)
+        ).astype(np.uint8)
 
     def _decode_and_draw(self, payload):
         usable = len(payload) - (len(payload) % 8)
@@ -2297,7 +2310,7 @@ class EventCameraApp(Gtk.Window):
         grid.attach(self.make_label("Event trail"), 4, 1, 1, 1)
         self.trail_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.50, 0.995, 0.005)
         self.trail_scale.set_digits(3)
-        self.trail_scale.set_value(0.82)
+        self.trail_scale.set_value(DEFAULT_LIVE_TRAIL)
         self.trail_scale.set_hexpand(True)
         self.trail_scale.connect("value-changed", self.on_render_setting_changed)
         grid.attach(self.trail_scale, 5, 1, 2, 1)
