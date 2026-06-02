@@ -18,15 +18,30 @@
 [![Company](https://img.shields.io/badge/Company-LazyingArt%20LLC-7c3aed?style=for-the-badge)](https://flow.lazying.art)
 [![Maintainer](https://img.shields.io/badge/Maintainer-lazyingart-0ea5e9?style=for-the-badge)](mailto:lachlan@lazying.art)
 
-<img src="docs/assets/kria-metavision-lab-gui.png" alt="Kria Metavision Lab custom event-camera GUI running on the KV260 desktop" width="100%">
+<img src="docs/assets/custom-viewer.PNG" alt="Kria Metavision Lab custom event-camera GUI running on the KV260 desktop" width="100%">
 
 <sub>Custom KV260 Event Camera GUI running on the local PetaLinux desktop with live Prophesee event data, recording controls, capture naming, and camera recovery tools.</sub>
 
 <br><br>
 
-<img src="docs/assets/kv260-control-center.png" alt="KV260 Control Center on Windows with camera, applications, notebook, and power controls" width="100%">
-
-<sub>Windows KV260 Control Center: one entry point for camera routing, board GUI apps through SSH X11, Jupyter, and power actions.</sub>
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/kv260-control-center-v2.PNG" alt="KV260 Control Center v2 on Windows with camera, applications, notebook, and power controls" width="100%">
+    </td>
+    <td width="50%">
+      <img src="docs/assets/kv260-control-center-ft.PNG" alt="KV260 Control Center file transfer tab with two-pane board and host file browser" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <sub>Windows KV260 Control Center v2: one entry point for camera routing, board GUI apps through SSH X11, Jupyter, and power actions.</sub>
+    </td>
+    <td>
+      <sub>File Transfer tab: two-pane host/KV260 browser with bidirectional copy actions for daily board work.</sub>
+    </td>
+  </tr>
+</table>
 
 </div>
 
