@@ -21,10 +21,9 @@ Board-side setup:
 - installs a local X11 display never-sleep helper,
 - installs `kv260-ncdu-lite.py` as `/usr/local/bin/ncdu`,
 - best-effort loads the Prophesee KV260 camera stack if the loader exists,
-- installs the board Applications menu launchers:
+- installs the board Applications menu launcher:
   - `KV260 Event Camera`
-  - `KV260 File Transfer`
-- keeps native `metavision_viewer` available through scripts and the Windows Control Center, but not as a duplicate visible board menu entry,
+- keeps native `metavision_viewer` and file transfer available through scripts and the Windows Control Center, but not as duplicate visible board menu entries,
 - runs the event camera validation script.
 
 Optional Windows setup:

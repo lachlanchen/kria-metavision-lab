@@ -20,7 +20,6 @@ Only these Prophesee/KV260 application entries should exist:
 
 ```text
 /usr/share/applications/kv260-event-camera.desktop
-/usr/share/applications/kv260-file-transfer.desktop
 ```
 
 There should be no duplicate KV260/Metavision/Prophesee entries under:
@@ -114,7 +113,7 @@ Current verified behavior:
 ```text
 KV260 Event Camera: opens and closes through its local quit socket.
 Metavision Viewer: one launch opens the native viewer; a second launch closes it.
-Desktop entries: only the two system Applications entries remain.
+Desktop entries: only the single system Applications entry remains.
 ```
 
 ## If The Desktop Gets Busy Again

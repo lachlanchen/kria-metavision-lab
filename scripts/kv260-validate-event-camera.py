@@ -315,13 +315,34 @@ def run_bias_probe(app):
 def run_launcher_probe():
     entries = [
         pathlib.Path("/usr/share/applications/kv260-event-camera.desktop"),
-        pathlib.Path("/usr/share/applications/kv260-file-transfer.desktop"),
     ]
     scripts = [
         HERE / "kv260-event-camera-app.sh",
-        HERE / "kv260-file-transfer-gui.sh",
         HERE / "kv260-event-camera-switch.sh",
     ]
+    scanned_dirs = [
+        pathlib.Path("/usr/share/applications"),
+        pathlib.Path("/home/petalinux/.local/share/applications"),
+        pathlib.Path("/home/petalinux/Desktop"),
+        pathlib.Path("/home/root/.local/share/applications"),
+        pathlib.Path("/home/root/Desktop"),
+    ]
+    allowed_entries = {str(path) for path in entries}
+    unexpected_entries = []
+    for directory in scanned_dirs:
+        try:
+            if not directory.exists():
+                continue
+            candidates = []
+            candidates.extend(directory.glob("*kv260*.desktop"))
+            candidates.extend(directory.glob("*metavision*.desktop"))
+            candidates.extend(directory.glob("*prophesee*.desktop"))
+        except PermissionError:
+            continue
+        for path in candidates:
+            path_str = str(path)
+            if path_str not in allowed_entries and path_str not in unexpected_entries:
+                unexpected_entries.append(path_str)
     missing_entries = [str(path) for path in entries if not path.exists()]
     missing_scripts = [str(path) for path in scripts if not path.exists()]
     non_exec_scripts = [str(path) for path in scripts if path.exists() and not os.access(path, os.X_OK)]
@@ -330,9 +351,10 @@ def run_launcher_probe():
         "entries": [str(path) for path in entries],
         "scripts": [str(path) for path in scripts],
         "missing_entries": missing_entries,
+        "unexpected_entries": sorted(unexpected_entries),
         "missing_scripts": missing_scripts,
         "non_exec_scripts": non_exec_scripts,
-        "pass": bool(not missing_entries and not missing_scripts and not non_exec_scripts),
+        "pass": bool(not missing_entries and not unexpected_entries and not missing_scripts and not non_exec_scripts),
     }
 
 
@@ -461,6 +483,16 @@ def write_reports(output_dir, results):
                     item["stats"].get("pending_buffers"),
                     item["stats"].get("dropped_buffers"),
                     item["stats"].get("stop_elapsed_s"),
+                )
+            )
+        elif item["name"] == "launcher_probe":
+            lines.append(
+                "- entries_ok=%s scripts_ok=%s executable_ok=%s unexpected=%s"
+                % (
+                    not item["missing_entries"],
+                    not item["missing_scripts"],
+                    not item["non_exec_scripts"],
+                    item.get("unexpected_entries", []),
                 )
             )
         elif item["name"] == "playback_player":

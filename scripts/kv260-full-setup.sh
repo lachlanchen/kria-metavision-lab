@@ -514,9 +514,8 @@ print_summary() {
 Project:
   ${PROJECT_DIR}
 
-Board launchers:
+Board launcher:
   KV260 Event Camera
-  KV260 File Transfer
 
 Recording folder:
   ${RECORD_HOME}/event_recordings

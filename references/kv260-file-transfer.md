@@ -1,6 +1,6 @@
 # KV260 File Transfer GUI
 
-Updated: 2026-06-01
+Updated: 2026-06-02
 
 This repo now has two file-transfer entry points:
 
@@ -136,11 +136,9 @@ On 2026-06-01:
 - Tested Windows -> KV260 -> Windows round-trip with `scp.exe -O`.
 - Tested board -> Windows -> board round-trip with the board-side transfer engine.
 - Tested board-side Windows directory listing through PowerShell JSON over SSH.
-- Installed the board desktop launcher:
-
-```text
-/usr/share/applications/kv260-file-transfer.desktop
-```
+- Earlier installed a board desktop launcher for file transfer.
+- That launcher was later removed from the board Applications menu to keep only one visible KV260 launcher.
+- The file-transfer GUI remains available through `scripts/kv260-file-transfer-gui.sh`, SSH X11, and the Windows Control Center.
 
 Update after layout/debug pass:
 
