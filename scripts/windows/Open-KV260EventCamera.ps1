@@ -5,7 +5,8 @@ param(
     [string]$Language = "",
     [switch]$CheckOnly,
     [switch]$FilesSelfTest,
-    [switch]$UiSelfTest
+    [switch]$UiSelfTest,
+    [switch]$LayoutSelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -1773,6 +1774,28 @@ function New-CompactIconButton {
     return $button
 }
 
+function New-TransferArrowButton {
+    param(
+        [string]$Arrow,
+        [string]$ToolTipKey,
+        [System.Drawing.Color]$BackColor
+    )
+    $button = New-Object System.Windows.Forms.Button
+    $button.Size = New-Object System.Drawing.Size(58, 44)
+    $button.Font = New-Object System.Drawing.Font("Segoe UI", 15, [System.Drawing.FontStyle]::Bold)
+    $button.BackColor = $BackColor
+    $button.ForeColor = [System.Drawing.Color]::White
+    $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $button.FlatAppearance.BorderSize = 0
+    $button.FlatAppearance.MouseOverBackColor = Shift-Color -Color $BackColor -Delta 18
+    $button.FlatAppearance.MouseDownBackColor = Shift-Color -Color $BackColor -Delta -24
+    $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $button.Text = $Arrow
+    $button.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    Register-LocalizedToolTip $ToolTipKey $button
+    return $button
+}
+
 function Add-ButtonToPanel {
     param(
         [System.Windows.Forms.FlowLayoutPanel]$Panel,
@@ -1798,12 +1821,16 @@ function New-FlowPanel {
 if ($UiSelfTest) {
     $probe = New-Button "Probe Button" ([System.Drawing.Color]::FromArgb(37, 99, 235)) "camera"
     $compactProbe = New-CompactIconButton "Refresh" ([System.Drawing.Color]::FromArgb(71, 85, 105)) "refresh"
+    $arrowProbe = New-TransferArrowButton ">>" "Copy KV260 -> Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235))
     Write-Host "ACTION_IMAGES=$($script:ActionImageList.Images.Count)"
     Write-Host "PROBE_HAS_IMAGE=$($null -ne $probe.Image)"
     Write-Host "PROBE_TEXT=$($probe.Text)"
     Write-Host "COMPACT_HAS_IMAGE=$($null -ne $compactProbe.Image)"
     Write-Host "COMPACT_TEXT_LENGTH=$($compactProbe.Text.Length)"
     Write-Host "COMPACT_TOOLTIP=$($script:ToolTip.GetToolTip($compactProbe))"
+    Write-Host "ARROW_TEXT=$($arrowProbe.Text)"
+    Write-Host "ARROW_TOOLTIP=$($script:ToolTip.GetToolTip($arrowProbe))"
+    $arrowProbe.Dispose()
     $compactProbe.Dispose()
     $probe.Dispose()
     $form.Dispose()
@@ -2028,15 +2055,13 @@ $script:RemoteList.Add_DragDrop({
 })
 $filesTab.Controls.Add($script:RemoteList)
 
-$uploadButton = New-Button "Copy Windows -> KV260" ([System.Drawing.Color]::FromArgb(5, 150, 105)) "upload"
+$uploadButton = New-TransferArrowButton "<<" "Copy Windows -> KV260" ([System.Drawing.Color]::FromArgb(5, 150, 105))
 $uploadButton.Location = New-Object System.Drawing.Point(14, 334)
-$uploadButton.Size = New-Object System.Drawing.Size(190, 34)
 $uploadButton.Add_Click({ Upload-SelectedFiles })
 $filesTab.Controls.Add($uploadButton)
 
-$downloadButton = New-Button "Copy KV260 -> Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235)) "download"
+$downloadButton = New-TransferArrowButton ">>" "Copy KV260 -> Windows" ([System.Drawing.Color]::FromArgb(37, 99, 235))
 $downloadButton.Location = New-Object System.Drawing.Point(210, 334)
-$downloadButton.Size = New-Object System.Drawing.Size(190, 34)
 $downloadButton.Add_Click({ Download-SelectedFiles })
 $filesTab.Controls.Add($downloadButton)
 
@@ -2099,7 +2124,184 @@ $footer.Size = New-Object System.Drawing.Size(1060, 20)
 $footer.Anchor = "Bottom,Left,Right"
 $form.Controls.Add($footer)
 
+function Resize-FileListColumns {
+    param(
+        [System.Windows.Forms.ListView]$List,
+        [int]$Width
+    )
+    if (-not $List -or $List.Columns.Count -lt 4) {
+        return
+    }
+    $typeWidth = 74
+    $sizeWidth = 84
+    $modifiedWidth = 132
+    $padding = 32
+    $nameWidth = [Math]::Max(160, $Width - $typeWidth - $sizeWidth - $modifiedWidth - $padding)
+    $List.Columns[0].Width = $nameWidth
+    $List.Columns[1].Width = $typeWidth
+    $List.Columns[2].Width = $sizeWidth
+    $List.Columns[3].Width = $modifiedWidth
+}
+
+function Apply-FilesTabLayout {
+    if (-not (Get-Variable -Name filesTab -Scope Script -ErrorAction SilentlyContinue)) {
+        return
+    }
+    $clientWidth = $filesTab.ClientSize.Width
+    $clientHeight = $filesTab.ClientSize.Height
+    if ($tabs -and $tabs.DisplayRectangle.Width -gt $clientWidth) {
+        $clientWidth = $tabs.DisplayRectangle.Width
+    }
+    if ($tabs -and $tabs.DisplayRectangle.Height -gt $clientHeight) {
+        $clientHeight = $tabs.DisplayRectangle.Height
+    }
+    if ($clientWidth -lt 700 -or $clientHeight -lt 260) {
+        return
+    }
+
+    $filesTab.SuspendLayout()
+    try {
+        $margin = 14
+        $centerWidth = 76
+        $gap = 10
+        $headerY = 10
+        $labelY = 38
+        $pathY = 62
+        $listY = 98
+        $iconW = 34
+        $iconH = 28
+        $iconGap = 4
+        $hintH = 20
+        $utilityH = 34
+        $bottomMargin = 12
+
+        $contentWidth = [Math]::Max(700, $clientWidth - (2 * $margin))
+        $paneWidth = [Math]::Floor(($contentWidth - $centerWidth - (2 * $gap)) / 2)
+        $paneWidth = [Math]::Max(320, $paneWidth)
+        $leftX = $margin
+        $centerX = $leftX + $paneWidth + $gap
+        $rightX = $centerX + $centerWidth + $gap
+        $rightLimit = $rightX + $paneWidth
+
+        if ($rightLimit -gt ($clientWidth - $margin)) {
+            $paneWidth = [Math]::Floor(($clientWidth - (2 * $margin) - $centerWidth - (2 * $gap)) / 2)
+            $paneWidth = [Math]::Max(300, $paneWidth)
+            $centerX = $leftX + $paneWidth + $gap
+            $rightX = $centerX + $centerWidth + $gap
+        }
+
+        $utilityY = [Math]::Max($listY + 150, $clientHeight - $bottomMargin - $hintH - 8 - $utilityH)
+        $listHeight = [Math]::Max(150, $utilityY - $listY - 12)
+        $hintY = $utilityY + $utilityH + 6
+
+        $filesHeader.SetBounds($margin, $headerY, [Math]::Max(300, $clientWidth - (2 * $margin)), 22)
+        $localLabel.SetBounds($leftX, $labelY, $paneWidth, 22)
+        $remoteLabel.SetBounds($rightX, $labelY, $paneWidth, 22)
+
+        $leftPathWidth = [Math]::Max(160, $paneWidth - (2 * $iconW) - (2 * $iconGap))
+        $script:RemotePathText.SetBounds($leftX, $pathY, $leftPathWidth, 24)
+        $remoteRefresh.SetBounds($leftX + $leftPathWidth + $iconGap, $pathY - 2, $iconW, $iconH)
+        $remoteUp.SetBounds($leftX + $leftPathWidth + $iconGap + $iconW + $iconGap, $pathY - 2, $iconW, $iconH)
+
+        $rightPathWidth = [Math]::Max(160, $paneWidth - (3 * $iconW) - (3 * $iconGap))
+        $script:LocalPathText.SetBounds($rightX, $pathY, $rightPathWidth, 24)
+        $localRefresh.SetBounds($rightX + $rightPathWidth + $iconGap, $pathY - 2, $iconW, $iconH)
+        $localUp.SetBounds($rightX + $rightPathWidth + $iconGap + $iconW + $iconGap, $pathY - 2, $iconW, $iconH)
+        $localBrowse.SetBounds($rightX + $rightPathWidth + $iconGap + (2 * ($iconW + $iconGap)), $pathY - 2, $iconW, $iconH)
+
+        $script:RemoteList.SetBounds($leftX, $listY, $paneWidth, $listHeight)
+        $script:LocalList.SetBounds($rightX, $listY, $paneWidth, $listHeight)
+        Resize-FileListColumns $script:RemoteList $paneWidth
+        Resize-FileListColumns $script:LocalList $paneWidth
+
+        $arrowX = $centerX + [Math]::Floor(($centerWidth - 58) / 2)
+        $arrowY = $listY + [Math]::Max(18, [Math]::Floor(($listHeight - 96) / 2))
+        $uploadButton.SetBounds($arrowX, $arrowY, 58, 44)
+        $downloadButton.SetBounds($arrowX, $arrowY + 54, 58, 44)
+
+        $utilityGap = 8
+        $refreshW = [Math]::Min(150, [Math]::Max(122, [Math]::Floor($paneWidth * 0.30)))
+        $newFolderW = [Math]::Min(210, [Math]::Max(158, [Math]::Floor($paneWidth * 0.38)))
+        $openTransferW = [Math]::Min(250, [Math]::Max(198, [Math]::Floor($paneWidth * 0.46)))
+        $utilityX = $leftX
+        $refreshFilesButton.SetBounds($utilityX, $utilityY, $refreshW, $utilityH)
+        $utilityX += $refreshW + $utilityGap
+        $newRemoteFolder.SetBounds($utilityX, $utilityY, $newFolderW, $utilityH)
+        $utilityX += $newFolderW + $utilityGap
+        $openBoardTransfer.SetBounds($utilityX, $utilityY, $openTransferW, $utilityH)
+
+        $script:FileDropHint.SetBounds($margin, $hintY, [Math]::Max(300, $clientWidth - (2 * $margin)), $hintH)
+    } finally {
+        $filesTab.ResumeLayout($true)
+    }
+}
+
+function Apply-ControlCenterLayout {
+    $client = $form.ClientSize
+    if ($client.Width -lt 900 -or $client.Height -lt 560) {
+        return
+    }
+
+    $form.SuspendLayout()
+    try {
+        $margin = 24
+        $right = $client.Width - $margin
+        $languageComboW = 178
+        $languageLabelW = 86
+        $languageX = $right - $languageComboW
+        $languageLabelX = $languageX - $languageLabelW - 8
+
+        $brandPanel.SetBounds($margin, 16, 46, 46)
+        $title.SetBounds(84, 16, [Math]::Max(300, $languageLabelX - 96), 38)
+        $subtitle.SetBounds(86, 54, [Math]::Max(300, $right - 86), 22)
+        $languageLabel.SetBounds($languageLabelX, 20, $languageLabelW, 20)
+        $script:LanguageCombo.SetBounds($languageX, 18, $languageComboW, 24)
+
+        $footerH = 20
+        $footerY = $client.Height - 28 - $footerH
+        $outputH = [Math]::Min(150, [Math]::Max(112, [Math]::Floor($client.Height * 0.18)))
+        $outputY = $footerY - 12 - $outputH
+        $tabsTop = 92
+        $tabsH = [Math]::Max(300, $outputY - 14 - $tabsTop)
+
+        $tabs.SetBounds($margin, $tabsTop, [Math]::Max(600, $client.Width - (2 * $margin)), $tabsH)
+        $script:OutputBox.SetBounds($margin, $outputY, [Math]::Max(600, $client.Width - (2 * $margin)), $outputH)
+        $footer.SetBounds($margin, $footerY, [Math]::Max(600, $client.Width - (2 * $margin)), $footerH)
+    } finally {
+        $form.ResumeLayout($true)
+    }
+    Apply-FilesTabLayout
+}
+
+if ($LayoutSelfTest) {
+    $form.ClientSize = New-Object System.Drawing.Size(1120, 760)
+    Apply-ControlCenterLayout
+    Write-Host "NORMAL_TABS=$($tabs.Width)x$($tabs.Height)"
+    Write-Host "NORMAL_LEFT=$($script:RemoteList.Left),$($script:RemoteList.Width)"
+    Write-Host "NORMAL_RIGHT=$($script:LocalList.Left),$($script:LocalList.Width)"
+    Write-Host "NORMAL_ARROWS=$($uploadButton.Text)/$($downloadButton.Text):$($uploadButton.Left),$($downloadButton.Left)"
+    Write-Host "NORMAL_GAP=$($script:LocalList.Left - ($script:RemoteList.Left + $script:RemoteList.Width))"
+    $form.ClientSize = New-Object System.Drawing.Size(1600, 960)
+    Apply-ControlCenterLayout
+    Write-Host "LARGE_TABS=$($tabs.Width)x$($tabs.Height)"
+    Write-Host "LARGE_LEFT=$($script:RemoteList.Left),$($script:RemoteList.Width)"
+    Write-Host "LARGE_RIGHT=$($script:LocalList.Left),$($script:LocalList.Width)"
+    Write-Host "LARGE_ARROWS=$($uploadButton.Text)/$($downloadButton.Text):$($uploadButton.Left),$($downloadButton.Left)"
+    Write-Host "LARGE_GAP=$($script:LocalList.Left - ($script:RemoteList.Left + $script:RemoteList.Width))"
+    $form.Dispose()
+    exit 0
+}
+
+$form.Add_Resize({
+    Apply-ControlCenterLayout
+})
+
+$tabs.Add_SelectedIndexChanged({
+    Apply-FilesTabLayout
+})
+
 $form.Add_Shown({
+    Apply-ControlCenterLayout
     Add-Log "Ready. Host alias: $HostAlias"
     Refresh-Status
     Refresh-LocalFiles

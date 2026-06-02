@@ -191,3 +191,14 @@ Update after Files tab header layout pass:
 - KV260-side path row: path field, refresh icon, up icon.
 - Windows-side path row: path field, refresh icon, up icon, browse icon.
 - This avoids `Refresh` / `Up` text overflow and overlap in narrow panes and in longer translated languages.
+
+Update after responsive Control Center layout pass:
+
+- The whole Control Center now recomputes layout on resize instead of relying on mixed fixed coordinates and anchors.
+- The tab area expands in both width and height when the window is maximized; Camera, Applications, Files, and Notebook/Power tabs all inherit the larger tab surface.
+- The log panel and footer stay aligned at the bottom.
+- The Files tab keeps the KV260 pane and Windows pane equal width instead of letting only the right pane grow.
+- The transfer actions now sit in a dedicated center strip between the panes:
+  - `<<` copies selected Windows/right-pane files into the KV260/left pane.
+  - `>>` copies selected KV260/left-pane files into the Windows/right pane.
+- Full descriptions remain available as localized tooltips and accessibility names.
