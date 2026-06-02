@@ -34,10 +34,13 @@ Capabilities:
 - two-pane file browser,
 - left pane: KV260 filesystem,
 - right pane: Windows local filesystem,
+- folder and common file-type icons in the file lists,
 - multi-select upload and download,
 - drag selected Windows rows onto the KV260 pane to upload,
 - drag selected KV260 rows onto the Windows pane to download,
 - drag files from Windows Explorer onto the KV260 pane to upload,
+- drag onto empty pane space to copy into the current folder,
+- drag onto a folder row/icon to copy directly into that folder,
 - create a new folder on the KV260,
 - open the board-side transfer GUI through SSH X11.
 
@@ -153,3 +156,9 @@ Update after Windows popup traceback fix:
 - The Windows Control Center avoids PowerShell nested `ssh.exe` output capture, which can hang or surface truncated traceback popups in this setup.
 - Board listing now writes command output to temporary files on the KV260, pulls those files with `scp -O`, parses the JSON locally, and cleans up the temporary files.
 - Re-ran deployed Windows `-FilesSelfTest`; it listed `/home/petalinux/Projects/kria-kv260-starter` successfully.
+
+Update after icon/drop-target pass:
+
+- Windows Control Center Files tab now uses colored icons for folders and common file classes: text, code, image, video, audio, archives, PDF, Office, tables, and capture/raw files.
+- Folder rows are styled more strongly and show their full path as a tooltip.
+- Drag-and-drop is destination-aware: dropping onto empty pane space copies into the current folder, while dropping onto a folder row/icon copies directly into that folder.

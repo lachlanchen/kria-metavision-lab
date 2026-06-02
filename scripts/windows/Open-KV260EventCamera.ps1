@@ -119,6 +119,130 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName Microsoft.VisualBasic
 
+function New-FileIconImage {
+    param(
+        [string]$Kind,
+        [System.Drawing.Color]$Accent
+    )
+    $bitmap = [System.Drawing.Bitmap]::new(18, 18)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $graphics.Clear([System.Drawing.Color]::Transparent)
+
+    if ($Kind -eq "folder") {
+        $tabBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(251, 191, 36))
+        $bodyBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(245, 158, 11))
+        $borderPen = [System.Drawing.Pen]::new([System.Drawing.Color]::FromArgb(180, 83, 9))
+        $graphics.FillRectangle($tabBrush, 2, 4, 6, 4)
+        $graphics.FillRectangle($bodyBrush, 1, 7, 16, 9)
+        $graphics.DrawRectangle($borderPen, 1, 7, 16, 9)
+        $graphics.DrawLine($borderPen, 2, 7, 8, 7)
+        $tabBrush.Dispose()
+        $bodyBrush.Dispose()
+        $borderPen.Dispose()
+    } else {
+        $paperBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(248, 250, 252))
+        $foldBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(226, 232, 240))
+        $accentBrush = [System.Drawing.SolidBrush]::new($Accent)
+        $borderPen = [System.Drawing.Pen]::new([System.Drawing.Color]::FromArgb(100, 116, 139))
+        $points = @(
+            ([System.Drawing.Point]::new(4, 2)),
+            ([System.Drawing.Point]::new(12, 2)),
+            ([System.Drawing.Point]::new(15, 5)),
+            ([System.Drawing.Point]::new(15, 16)),
+            ([System.Drawing.Point]::new(4, 16))
+        )
+        $graphics.FillPolygon($paperBrush, $points)
+        $graphics.FillPolygon($foldBrush, @(
+            ([System.Drawing.Point]::new(12, 2)),
+            ([System.Drawing.Point]::new(15, 5)),
+            ([System.Drawing.Point]::new(12, 5))
+        ))
+        $graphics.DrawPolygon($borderPen, $points)
+        $graphics.FillRectangle($accentBrush, 5, 11, 9, 3)
+        $paperBrush.Dispose()
+        $foldBrush.Dispose()
+        $accentBrush.Dispose()
+        $borderPen.Dispose()
+    }
+
+    $graphics.Dispose()
+    return $bitmap
+}
+
+function Initialize-FileImages {
+    $images = New-Object System.Windows.Forms.ImageList
+    $images.ImageSize = [System.Drawing.Size]::new(18, 18)
+    $images.ColorDepth = [System.Windows.Forms.ColorDepth]::Depth32Bit
+    $palette = @{
+        folder = [System.Drawing.Color]::FromArgb(245, 158, 11)
+        file = [System.Drawing.Color]::FromArgb(100, 116, 139)
+        text = [System.Drawing.Color]::FromArgb(20, 184, 166)
+        code = [System.Drawing.Color]::FromArgb(37, 99, 235)
+        image = [System.Drawing.Color]::FromArgb(22, 163, 74)
+        video = [System.Drawing.Color]::FromArgb(147, 51, 234)
+        audio = [System.Drawing.Color]::FromArgb(219, 39, 119)
+        archive = [System.Drawing.Color]::FromArgb(217, 119, 6)
+        pdf = [System.Drawing.Color]::FromArgb(220, 38, 38)
+        doc = [System.Drawing.Color]::FromArgb(29, 78, 216)
+        sheet = [System.Drawing.Color]::FromArgb(21, 128, 61)
+        raw = [System.Drawing.Color]::FromArgb(79, 70, 229)
+    }
+    foreach ($key in $palette.Keys) {
+        [void]$images.Images.Add($key, (New-FileIconImage -Kind $key -Accent $palette[$key]))
+    }
+    $script:FileImageList = $images
+}
+
+function Get-FileImageKey {
+    param([string]$Name, [bool]$IsDirectory)
+    if ($IsDirectory) {
+        return "folder"
+    }
+    $extension = [System.IO.Path]::GetExtension($Name).ToLowerInvariant()
+    switch ($extension) {
+        { $_ -in @(".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".svg", ".webp") } { return "image" }
+        { $_ -in @(".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v") } { return "video" }
+        { $_ -in @(".wav", ".mp3", ".flac", ".aac", ".m4a", ".ogg") } { return "audio" }
+        { $_ -in @(".zip", ".tar", ".gz", ".tgz", ".xz", ".7z", ".rar") } { return "archive" }
+        ".pdf" { return "pdf" }
+        { $_ -in @(".doc", ".docx", ".ppt", ".pptx") } { return "doc" }
+        { $_ -in @(".xls", ".xlsx", ".csv", ".tsv") } { return "sheet" }
+        { $_ -in @(".py", ".ps1", ".sh", ".c", ".cc", ".cpp", ".h", ".hpp", ".js", ".ts", ".html", ".css", ".json", ".xml", ".yaml", ".yml") } { return "code" }
+        { $_ -in @(".txt", ".md", ".log", ".ini", ".cfg", ".conf") } { return "text" }
+        { $_ -in @(".raw", ".dat", ".aedat", ".h5", ".hdf5", ".npy", ".npz", ".bin") } { return "raw" }
+        default { return "file" }
+    }
+}
+
+function Get-FileTypeLabel {
+    param([string]$Name, [bool]$IsDirectory)
+    if ($IsDirectory) {
+        return "Folder"
+    }
+    $extension = [System.IO.Path]::GetExtension($Name).ToLowerInvariant()
+    switch ($extension) {
+        ".py" { return "Python" }
+        ".ps1" { return "PowerShell" }
+        ".sh" { return "Shell" }
+        { $_ -in @(".c", ".cc", ".cpp", ".h", ".hpp") } { return "C/C++" }
+        { $_ -in @(".json", ".xml", ".yaml", ".yml") } { return "Data" }
+        { $_ -in @(".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".svg", ".webp") } { return "Image" }
+        { $_ -in @(".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v") } { return "Video" }
+        { $_ -in @(".wav", ".mp3", ".flac", ".aac", ".m4a", ".ogg") } { return "Audio" }
+        { $_ -in @(".zip", ".tar", ".gz", ".tgz", ".xz", ".7z", ".rar") } { return "Archive" }
+        ".pdf" { return "PDF" }
+        { $_ -in @(".doc", ".docx", ".ppt", ".pptx") } { return "Office" }
+        { $_ -in @(".xls", ".xlsx", ".csv", ".tsv") } { return "Table" }
+        { $_ -in @(".txt", ".md", ".log", ".ini", ".cfg", ".conf") } { return "Text" }
+        { $_ -in @(".raw", ".dat", ".aedat", ".h5", ".hdf5", ".npy", ".npz", ".bin") } { return "Capture" }
+        "" { return "File" }
+        default { return $extension.TrimStart(".").ToUpperInvariant() }
+    }
+}
+
+Initialize-FileImages
+
 function Add-Log {
     param([string]$Text)
     Write-AppLog $Text
@@ -189,6 +313,8 @@ function New-FileListView {
     $list.HideSelection = $false
     $list.AllowDrop = $true
     $list.Anchor = "Top,Bottom,Left,Right"
+    $list.SmallImageList = $script:FileImageList
+    $list.ShowItemToolTips = $true
     [void]$list.Columns.Add("Name", 250)
     [void]$list.Columns.Add("Type", 72)
     [void]$list.Columns.Add("Size", 82)
@@ -206,7 +332,14 @@ function Add-FileListRow {
         [string]$Path
     )
     $item = New-Object System.Windows.Forms.ListViewItem($Name)
-    [void]$item.SubItems.Add($(if ($IsDirectory) { "Folder" } else { "File" }))
+    $item.ImageKey = Get-FileImageKey -Name $Name -IsDirectory $IsDirectory
+    if ($IsDirectory) {
+        $item.ForeColor = [System.Drawing.Color]::FromArgb(146, 64, 14)
+        $item.Font = [System.Drawing.Font]::new($List.Font, [System.Drawing.FontStyle]::Bold)
+    } else {
+        $item.ForeColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
+    }
+    [void]$item.SubItems.Add((Get-FileTypeLabel -Name $Name -IsDirectory $IsDirectory))
     [void]$item.SubItems.Add($(if ($IsDirectory) { "" } else { Format-FileSize $Size }))
     $modifiedText = ""
     if ($Modified) {
@@ -221,7 +354,27 @@ function Add-FileListRow {
         Path = $Path
         IsDirectory = $IsDirectory
     }
+    $item.ToolTipText = $Path
     [void]$List.Items.Add($item)
+}
+
+function Get-DropDestinationDirectory {
+    param(
+        [System.Windows.Forms.ListView]$List,
+        [string]$DefaultPath,
+        [int]$X,
+        [int]$Y
+    )
+    try {
+        $point = $List.PointToClient([System.Drawing.Point]::new($X, $Y))
+        $hit = $List.HitTest($point)
+        if ($hit -and $hit.Item -and $hit.Item.Tag -and $hit.Item.Tag.IsDirectory) {
+            return [string]$hit.Item.Tag.Path
+        }
+    } catch {
+        Write-AppLog "Drop target resolution failed:`r`n$($_ | Out-String)"
+    }
+    return $DefaultPath
 }
 
 function Get-SelectedFileTags {
@@ -270,9 +423,14 @@ if ($FilesSelfTest) {
     try {
         Write-AppLog "FilesSelfTest starting for $HostAlias $RemoteProject"
         $data = Get-KV260Directory $RemoteProject
+        $iconProbe = New-FileListView
+        Add-FileListRow -List $iconProbe -Name "folder-probe" -IsDirectory $true -Size 0 -Modified (Get-Date) -Path "/tmp/folder-probe"
+        Add-FileListRow -List $iconProbe -Name "script-probe.py" -IsDirectory $false -Size 128 -Modified (Get-Date) -Path "/tmp/script-probe.py"
         Write-Host "KV260_PATH=$($data.path)"
         Write-Host "KV260_ITEMS=$(@($data.items).Count)"
+        Write-Host "ICON_ITEMS=$($iconProbe.Items.Count)"
         Write-Host "CONTROL_LOG=$ControlLog"
+        $iconProbe.Dispose()
         Write-AppLog "FilesSelfTest passed for $($data.path)"
         exit 0
     } catch {
@@ -329,13 +487,20 @@ function Set-RemoteParent {
 }
 
 function Upload-LocalPaths {
-    param([string[]]$Paths)
+    param(
+        [string[]]$Paths,
+        [string]$DestinationDirectory = ""
+    )
     if (-not $Paths -or $Paths.Count -eq 0) {
         Add-Log "Upload skipped: no local files selected."
         return
     }
     Invoke-FileAction {
-        $remoteDir = $script:RemotePathText.Text.Trim()
+        $remoteDir = if ([string]::IsNullOrWhiteSpace($DestinationDirectory)) {
+            $script:RemotePathText.Text.Trim()
+        } else {
+            $DestinationDirectory
+        }
         $dest = (ConvertTo-ScpRemoteSpec $remoteDir) + "/"
         foreach ($path in $Paths) {
             Invoke-ScpCopy -Arguments @("-O", "-r", $path, $dest)
@@ -346,13 +511,20 @@ function Upload-LocalPaths {
 }
 
 function Download-RemotePaths {
-    param([string[]]$Paths)
+    param(
+        [string[]]$Paths,
+        [string]$DestinationDirectory = ""
+    )
     if (-not $Paths -or $Paths.Count -eq 0) {
         Add-Log "Download skipped: no KV260 files selected."
         return
     }
     Invoke-FileAction {
-        $localDir = $script:LocalPathText.Text.Trim()
+        $localDir = if ([string]::IsNullOrWhiteSpace($DestinationDirectory)) {
+            $script:LocalPathText.Text.Trim()
+        } else {
+            $DestinationDirectory
+        }
         foreach ($path in $Paths) {
             Invoke-ScpCopy -Arguments @("-O", "-r", (ConvertTo-ScpRemoteSpec $path), $localDir)
         }
@@ -814,10 +986,20 @@ $script:LocalList.Add_DragEnter({
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
     }
 })
+$script:LocalList.Add_DragOver({
+    if ($_.Data.GetDataPresent("BoardPaths")) {
+        $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+    }
+})
 $script:LocalList.Add_DragDrop({
     if ($_.Data.GetDataPresent("BoardPaths")) {
         $paths = ([string]$_.Data.GetData("BoardPaths")) -split "`n" | Where-Object { $_ }
-        Download-RemotePaths $paths
+        $target = Get-DropDestinationDirectory `
+            -List $script:LocalList `
+            -DefaultPath $script:LocalPathText.Text.Trim() `
+            -X $_.X `
+            -Y $_.Y
+        Download-RemotePaths $paths $target
     }
 })
 $filesTab.Controls.Add($script:LocalList)
@@ -848,13 +1030,23 @@ $script:RemoteList.Add_DragEnter({
         $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
     }
 })
+$script:RemoteList.Add_DragOver({
+    if ($_.Data.GetDataPresent("HostPaths") -or $_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+        $_.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+    }
+})
 $script:RemoteList.Add_DragDrop({
+    $target = Get-DropDestinationDirectory `
+        -List $script:RemoteList `
+        -DefaultPath $script:RemotePathText.Text.Trim() `
+        -X $_.X `
+        -Y $_.Y
     if ($_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
         $paths = [string[]]$_.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)
-        Upload-LocalPaths $paths
+        Upload-LocalPaths $paths $target
     } elseif ($_.Data.GetDataPresent("HostPaths")) {
         $paths = ([string]$_.Data.GetData("HostPaths")) -split "`n" | Where-Object { $_ }
-        Upload-LocalPaths $paths
+        Upload-LocalPaths $paths $target
     }
 })
 $filesTab.Controls.Add($script:RemoteList)
