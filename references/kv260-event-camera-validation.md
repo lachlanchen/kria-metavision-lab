@@ -101,30 +101,34 @@ This confirms the writer drains cleanly and reports bounded-queue overflow inste
 No-recording live preview:
 
 ```text
-buffers=396
-decoded_buffers=49
-skipped_buffers=323
+report=/tmp/kv260-event-camera-validation/20260602-194543/report.md
+buffers=872
+events=16520079
+decoded_buffers=180
+skipped_buffers=180
 preview_errors=0
-frames=50
-changed_after_2s=27
-nonblank_frames=50
+frames=46
+changed_after_2s=37
+active_event_frames_after_2s=37
+active_event_max_after_2s=6171
 ```
 
-This confirms the smooth preview path is still active when recording is off. Preview intentionally decodes a bounded latest-sample stream instead of every captured payload, so skipped preview payloads are healthy when buffers, events, frames, and changed frames continue advancing.
+This confirms the smooth preview path is still active when recording is off. The validator now checks real active event pixels after the first two seconds instead of only checking that GTK emitted frames. Preview intentionally decodes a bounded newest-payload stream instead of every captured payload, so skipped preview payloads are healthy when buffers, events, changed frames, and active event pixels continue advancing.
 
 Recording with `Recording Priority` on:
 
 ```text
-file_size=56690128
-bytes_written=56690128
-buffers_written=302
+file_size=39262496
+bytes_written=39262496
+buffers_written=401
 queue_pending=0
 drops=0
 write_error=None
-stop_elapsed_s=0.003
-decoded_buffers=51
-skipped_buffers=353
-replay_events_from_first_1MiB=132140
+stop_elapsed_s=0.004
+decoded_buffers=80
+skipped_buffers=184
+active_event_frames_after_2s=21
+replay_events_from_first_1MiB=105226
 replay_nonblank=True
 ```
 
@@ -133,11 +137,11 @@ This confirms the default recording-first mode works as designed: recording wrot
 Playback player:
 
 ```text
-events=49728
+events=40750
 frames=7
 nonblank_frames=7
 observed_playback=True
-stop_elapsed_s=0.085
+stop_elapsed_s=0.277
 ```
 
 This confirms the `Open Recording` code path can open a captured `.pse2.raw`, render nonblank playback frames, and stop cleanly.
@@ -145,16 +149,17 @@ This confirms the `Open Recording` code path can open a captured `.pse2.raw`, re
 Recording with `Recording Priority` off:
 
 ```text
-file_size=59296296
-bytes_written=59296296
-buffers_written=269
+file_size=27633760
+bytes_written=27633760
+buffers_written=399
 queue_pending=0
 drops=0
 write_error=None
-stop_elapsed_s=0.003
-decoded_buffers=50
-skipped_buffers=316
-replay_events_from_first_1MiB=144321
+stop_elapsed_s=0.004
+decoded_buffers=120
+skipped_buffers=120
+active_event_frames_after_2s=20
+replay_events_from_first_1MiB=129624
 replay_nonblank=True
 ```
 
@@ -176,7 +181,7 @@ The implementation is behaving correctly on the current KV260 image:
 
 - Installed launcher files exist and their script targets are executable.
 - Bias controls are discoverable on `/dev/v4l-subdev3`.
-- Preview remains live when not recording, with intentional preview decimation.
+- Preview remains live when not recording, with intentional newest-payload decimation and active event pixels still present after the first two seconds.
 - Recording keeps zero raw drops in the measured short runs while preview stays bounded.
 - Recording priority off no longer restores full preview decoding because that older mode could make the preview fall behind.
 - Recorded byte counts match actual file sizes.

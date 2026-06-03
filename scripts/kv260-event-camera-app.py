@@ -55,7 +55,11 @@ DEFAULT_RECORD_QUEUE_BUFFERS = int(os.environ.get("KV260_RECORD_QUEUE_BUFFERS", 
 DEFAULT_LIVE_TRAIL = float(os.environ.get("KV260_EVENT_LIVE_TRAIL", "0.94"))
 MAX_LIVE_DRAW_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_DRAW_FPS", os.environ.get("KV260_EVENT_MAX_LIVE_PREVIEW_FPS", "20")))
 MAX_LIVE_DISPLAY_FPS = float(os.environ.get("KV260_EVENT_MAX_LIVE_DISPLAY_FPS", "24"))
-MAX_PREVIEW_CD_WORDS = int(os.environ.get("KV260_EVENT_PREVIEW_CD_WORDS", "2048"))
+MAX_PREVIEW_CD_WORDS = int(os.environ.get("KV260_EVENT_PREVIEW_CD_WORDS", "4096"))
+MAX_PREVIEW_QUEUE_BUFFERS = int(os.environ.get("KV260_EVENT_PREVIEW_QUEUE_BUFFERS", "8"))
+MAX_PREVIEW_PAYLOADS_PER_FRAME = int(os.environ.get("KV260_EVENT_PREVIEW_PAYLOADS_PER_FRAME", "4"))
+MAX_PREVIEW_RECORDING_PAYLOADS_PER_FRAME = int(os.environ.get("KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME", "2"))
+LIVE_MIN_ACCUMULATION_US = int(os.environ.get("KV260_EVENT_LIVE_MIN_ACCUMULATION_US", "40000"))
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
@@ -253,7 +257,7 @@ UI_TRANSLATIONS = {
         "Point radius": "نصف قطر النقطة",
         "Event trail": "أثر الحدث",
         "Playback OSD overlay": "طبقة معلومات التشغيل",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "تستخدم المعاينة المباشرة رسما فوريا مع تلاشي للاستجابة. يتحكم التراكم في تشغيل التسجيل؛ استخدم القطبية والأثر لفحص توازن الأحداث.",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "تستخدم المعاينة المباشرة سطح أحداث حديثا محدودا للاستجابة. يتحكم التراكم في ثبات العرض المباشر وتشغيل التسجيل؛ استخدم القطبية لفحص توازن الأحداث.",
         "Refresh Biases": "تحديث الانحيازات",
         "Apply All": "تطبيق الكل",
         "Reset Defaults": "إعادة الافتراضي",
@@ -333,7 +337,7 @@ UI_TRANSLATIONS = {
         "Point radius": "Radio de punto",
         "Event trail": "Rastro de evento",
         "Playback OSD overlay": "OSD en reproducción",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "La vista en vivo dibuja y decae al instante para responder rápido. La acumulación controla la reproducción; usa polaridad y rastro para revisar el balance de eventos.",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "La vista en vivo usa una superficie limitada de eventos recientes para responder rápido. La acumulación controla la persistencia en vivo y la reproducción; usa polaridad para revisar el balance de eventos.",
         "Refresh Biases": "Actualizar biases",
         "Apply All": "Aplicar todo",
         "Reset Defaults": "Restaurar valores",
@@ -413,7 +417,7 @@ UI_TRANSLATIONS = {
         "Point radius": "Rayon du point",
         "Event trail": "Traînée",
         "Playback OSD overlay": "Surimpression OSD lecture",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "L’aperçu direct dessine puis atténue immédiatement pour rester réactif. L’accumulation contrôle la lecture; utilisez polarité et traînée pour inspecter l’équilibre.",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "L’aperçu direct utilise une surface bornée d’événements récents pour rester réactif. L’accumulation contrôle la persistance en direct et la lecture; utilisez la polarité pour inspecter l’équilibre.",
         "Refresh Biases": "Actualiser biais",
         "Apply All": "Tout appliquer",
         "Reset Defaults": "Réinitialiser",
@@ -493,7 +497,7 @@ UI_TRANSLATIONS = {
         "Point radius": "点の半径",
         "Event trail": "イベント残像",
         "Playback OSD overlay": "再生 OSD 表示",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "ライブ表示は応答性のため即時描画と減衰を使います。蓄積は記録再生用で、極性と残像でイベントのバランスを確認できます。",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "ライブ表示は応答性のため、制限された最新イベント面を使います。蓄積はライブの残存表示と記録再生を制御し、極性でイベントのバランスを確認できます。",
         "Refresh Biases": "バイアス更新",
         "Apply All": "すべて適用",
         "Reset Defaults": "既定に戻す",
@@ -573,7 +577,7 @@ UI_TRANSLATIONS = {
         "Point radius": "점 반경",
         "Event trail": "이벤트 잔상",
         "Playback OSD overlay": "재생 OSD 오버레이",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "라이브 미리보기는 반응성을 위해 즉시 그리고 감쇠합니다. 누적은 기록 재생에 사용하고, 극성과 잔상으로 이벤트 균형을 확인합니다.",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "라이브 미리보기는 반응성을 위해 제한된 최근 이벤트 표면을 사용합니다. 누적은 라이브 지속성과 기록 재생을 제어하고, 극성으로 이벤트 균형을 확인합니다.",
         "Refresh Biases": "바이어스 새로고침",
         "Apply All": "모두 적용",
         "Reset Defaults": "기본값 복원",
@@ -653,7 +657,7 @@ UI_TRANSLATIONS = {
         "Point radius": "Bán kính điểm",
         "Event trail": "Vệt sự kiện",
         "Playback OSD overlay": "OSD phát lại",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "Xem trực tiếp vẽ và làm mờ ngay để phản hồi nhanh. Tích lũy dùng cho phát lại; dùng cực tính và vệt để kiểm tra cân bằng sự kiện.",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "Xem trực tiếp dùng bề mặt sự kiện gần đây có giới hạn để phản hồi nhanh. Tích lũy điều khiển độ lưu ảnh trực tiếp và phát lại bản ghi; dùng cực tính để kiểm tra cân bằng sự kiện.",
         "Refresh Biases": "Làm mới bias",
         "Apply All": "Áp dụng tất cả",
         "Reset Defaults": "Về mặc định",
@@ -733,7 +737,7 @@ UI_TRANSLATIONS = {
         "Point radius": "点半径",
         "Event trail": "事件拖影",
         "Playback OSD overlay": "回放 OSD 叠加",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "实时预览使用立即绘制和衰减以保证响应。累积用于录制回放；可用极性和拖影查看事件平衡。",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "实时预览使用有界的近期事件表面以保证响应。累积控制实时持久显示和录制回放；可用极性查看事件平衡。",
         "Refresh Biases": "刷新 Bias",
         "Apply All": "全部应用",
         "Reset Defaults": "恢复默认",
@@ -813,7 +817,7 @@ UI_TRANSLATIONS = {
         "Point radius": "點半徑",
         "Event trail": "事件拖影",
         "Playback OSD overlay": "回放 OSD 疊加",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "即時預覽使用立即繪製與衰減來保持反應。累積用於錄製回放；可用極性與拖影檢查事件平衡。",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "即時預覽使用有界的近期事件表面來保持反應。累積控制即時持久顯示和錄製回放；可用極性檢查事件平衡。",
         "Refresh Biases": "重新整理 Bias",
         "Apply All": "全部套用",
         "Reset Defaults": "還原預設",
@@ -893,7 +897,7 @@ UI_TRANSLATIONS = {
         "Point radius": "Punktradius",
         "Event trail": "Ereignisspur",
         "Playback OSD overlay": "Wiedergabe-OSD",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "Die Live-Vorschau zeichnet sofort und lässt nach, damit sie reaktionsschnell bleibt. Akkumulation steuert die Wiedergabe; Polarität und Spur helfen beim Prüfen der Ereignisbalance.",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "Die Live-Vorschau nutzt eine begrenzte Oberfläche aktueller Ereignisse für Reaktionsfähigkeit. Akkumulation steuert Live-Persistenz und Wiedergabe; Polarität hilft beim Prüfen der Ereignisbalance.",
         "Refresh Biases": "Biases aktualisieren",
         "Apply All": "Alle anwenden",
         "Reset Defaults": "Standardwerte",
@@ -973,7 +977,7 @@ UI_TRANSLATIONS = {
         "Point radius": "Радиус точки",
         "Event trail": "След событий",
         "Playback OSD overlay": "OSD при playback",
-        "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance.": "Live-просмотр рисует сразу и затухает для отзывчивости. Накопление управляет воспроизведением; полярность и след помогают проверять баланс событий.",
+        "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance.": "Live-просмотр использует ограниченную поверхность недавних событий для отзывчивости. Накопление управляет live-послесвечением и воспроизведением записи; полярность помогает проверять баланс событий.",
         "Refresh Biases": "Обновить bias",
         "Apply All": "Применить все",
         "Reset Defaults": "Сбросить",
@@ -1136,8 +1140,6 @@ class EVT21Decoder:
         cd = (
             (event_type == np.uint64(0))
             | (event_type == np.uint64(1))
-            | (event_type == np.uint64(4))
-            | (event_type == np.uint64(5))
         )
         if not np.any(cd):
             return EventBatch(
@@ -1180,7 +1182,7 @@ class EVT21Decoder:
                 continue
             xs.append(x_base[bit_mask] + bit)
             ys.append(y_base[bit_mask])
-            pols.append((cd_type[bit_mask] == np.uint64(1)) | (cd_type[bit_mask] == np.uint64(5)))
+            pols.append(cd_type[bit_mask] == np.uint64(1))
             tss.append(timestamp[bit_mask])
 
         if not xs:
@@ -1503,10 +1505,15 @@ class V4L2EventStream:
         self.fd = None
         self.buffers = []
         self.display = np.zeros((VIEW_H, VIEW_W, 3), dtype=np.uint8)
+        self.surface_ts = np.full((VIEW_H, VIEW_W), -1, dtype=np.int64)
+        self.surface_pol = np.zeros((VIEW_H, VIEW_W), dtype=np.bool_)
+        self.last_event_ts = 0
+        self.last_event_wall_time = 0.0
         self.display_lock = threading.Lock()
-        self.preview_queue = queue.Queue(maxsize=1)
+        self.preview_queue = queue.Queue(maxsize=max(1, MAX_PREVIEW_QUEUE_BUFFERS))
         self.point_radius = 0
         self.decay = DEFAULT_LIVE_TRAIL
+        self.accumulation_us = 10000
         self.draw_interval = 1.0 / max(1.0, MAX_LIVE_DRAW_FPS)
         self.frame_interval = 1.0 / max(1.0, MAX_LIVE_DISPLAY_FPS)
         self.polarity_mode = "All"
@@ -1529,6 +1536,7 @@ class V4L2EventStream:
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
         self.decay = max(0.0, min(0.995, float(settings.get("trail", self.decay))))
+        self.accumulation_us = max(1000, min(500000, int(settings.get("accumulation_us", self.accumulation_us))))
         requested_fps = max(1.0, min(90.0, float(settings.get("fps", round(1.0 / self.frame_interval)))))
         display_fps = min(requested_fps, MAX_LIVE_DISPLAY_FPS) if MAX_LIVE_DISPLAY_FPS > 0 else requested_fps
         draw_fps = min(display_fps, MAX_LIVE_DRAW_FPS) if MAX_LIVE_DRAW_FPS > 0 else display_fps
@@ -1681,7 +1689,6 @@ class V4L2EventStream:
         try:
             self._open_device()
             self.on_status("Live camera open: %s (%sx%s PSE2)" % (self.device, WIDTH, HEIGHT))
-            last_preview_submit_time = 0.0
             last_rate_time = time.monotonic()
             last_rate_events = 0
             while not self.stop_event.is_set():
@@ -1705,7 +1712,6 @@ class V4L2EventStream:
                 self.total_buffers += 1
 
                 now = time.monotonic()
-                preview_due = now - last_preview_submit_time > self.draw_interval
                 recording_queued = False
                 with self.record_lock:
                     if self.record_writer:
@@ -1714,12 +1720,8 @@ class V4L2EventStream:
                             self.record_bytes += len(payload)
 
                 try:
-                    events = self._decode_and_draw(payload, draw=False)
-                    if preview_due:
-                        self._submit_preview_payload(payload)
-                        last_preview_submit_time = now
-                    else:
-                        self.preview_skipped_buffers += 1
+                    events = self._count_events(payload)
+                    self._submit_preview_payload(payload)
                 except Exception as exc:
                     self.preview_errors += 1
                     if self.preview_errors <= 3:
@@ -1773,34 +1775,47 @@ class V4L2EventStream:
         next_frame_time = time.monotonic()
         while not self.stop_event.is_set():
             now = time.monotonic()
-            latest_payload = None
+            if now < next_frame_time:
+                time.sleep(min(0.02, next_frame_time - now))
+                continue
+
+            pending_payloads = []
             while True:
                 try:
-                    latest_payload = self.preview_queue.get_nowait()
+                    payload = self.preview_queue.get_nowait()
                     self.preview_queue.task_done()
                 except queue.Empty:
                     break
-            if latest_payload is not None:
+
+                pending_payloads.append(payload)
+
+            max_payloads = max(1, MAX_PREVIEW_PAYLOADS_PER_FRAME)
+            if self.recording_priority and self.is_recording():
+                max_payloads = max(1, min(max_payloads, MAX_PREVIEW_RECORDING_PAYLOADS_PER_FRAME))
+            if len(pending_payloads) > max_payloads:
+                self.preview_skipped_buffers += len(pending_payloads) - max_payloads
+                pending_payloads = pending_payloads[-max_payloads:]
+
+            for payload in pending_payloads:
                 try:
-                    self._decode_and_draw(latest_payload, draw=True)
+                    self._update_preview_surface(payload)
                     self.preview_decoded_buffers += 1
                 except Exception as exc:
                     self.preview_errors += 1
                     if self.preview_errors <= 3:
                         self.on_status("Preview render failed; capture continues: %s" % exc)
 
-            if now < next_frame_time:
-                time.sleep(min(0.02, next_frame_time - now))
-                continue
-            with self.display_lock:
-                frame = self.display.copy()
-                self._fade_display()
+            frame = self._render_surface_frame()
             self.on_frame(frame)
             next_frame_time = now + self.frame_interval
 
     def _reset_display(self):
         with self.display_lock:
             self.display[:] = np.array(self.bg_color, dtype=np.uint8)
+            self.surface_ts.fill(-1)
+            self.surface_pol.fill(False)
+            self.last_event_ts = 0
+            self.last_event_wall_time = 0.0
 
     def _fade_display(self):
         bg = np.array(self.bg_color, dtype=np.float32)
@@ -1809,19 +1824,36 @@ class V4L2EventStream:
             + bg * (1.0 - self.decay)
         ).astype(np.uint8)
 
-    def _decode_and_draw(self, payload, draw=True):
+    def _count_events(self, payload):
         usable = len(payload) - (len(payload) % 8)
         if usable <= 0:
             return 0
 
         words = np.frombuffer(payload[:usable], dtype="<u8")
         event_type = (words >> np.uint64(60)) & np.uint64(0xF)
-        cd = (
-            (event_type == np.uint64(0))
-            | (event_type == np.uint64(1))
-            | (event_type == np.uint64(4))
-            | (event_type == np.uint64(5))
-        )
+        cd = (event_type == np.uint64(0)) | (event_type == np.uint64(1))
+        if not np.any(cd):
+            return 0
+
+        cd_words = words[cd]
+        x_base = ((cd_words >> np.uint64(43)) & np.uint64(0x7FF)).astype(np.int32)
+        y_base = ((cd_words >> np.uint64(32)) & np.uint64(0x7FF)).astype(np.int32)
+        vx = (cd_words & np.uint64(0xFFFFFFFF)).astype(np.uint32)
+        valid = (x_base >= 0) & (x_base < WIDTH) & (y_base >= 0) & (y_base < HEIGHT) & (vx != 0)
+        if not np.any(valid):
+            return 0
+
+        vx = vx[valid]
+        return int(POPCOUNT8[vx.view(np.uint8)].sum(dtype=np.uint64))
+
+    def _update_preview_surface(self, payload):
+        usable = len(payload) - (len(payload) % 8)
+        if usable <= 0:
+            return 0
+
+        words = np.frombuffer(payload[:usable], dtype="<u8")
+        event_type = (words >> np.uint64(60)) & np.uint64(0xF)
+        cd = (event_type == np.uint64(0)) | (event_type == np.uint64(1))
         if not np.any(cd):
             return 0
 
@@ -1838,12 +1870,12 @@ class V4L2EventStream:
         y_base = y_base[valid]
         vx = vx[valid]
         cd_type = cd_type[valid]
-        event_count = int(POPCOUNT8[vx.view(np.uint8)].sum(dtype=np.uint64))
-        if not draw or event_count <= 0:
-            return event_count
 
-        if vx.size > MAX_PREVIEW_CD_WORDS:
-            step = int(np.ceil(float(vx.size) / float(MAX_PREVIEW_CD_WORDS)))
+        max_words = max(256, int(MAX_PREVIEW_CD_WORDS))
+        if self.recording_priority and self.is_recording():
+            max_words = max(256, max_words // 2)
+        if vx.size > max_words:
+            step = int(np.ceil(float(vx.size) / float(max_words)))
             x_base = x_base[::step]
             y_base = y_base[::step]
             vx = vx[::step]
@@ -1858,7 +1890,7 @@ class V4L2EventStream:
                 continue
             xs.append(x_base[bit_mask] + bit)
             ys.append(y_base[bit_mask])
-            pols.append(cd_type[bit_mask])
+            pols.append(cd_type[bit_mask] == np.uint64(1))
         if not xs:
             return 0
 
@@ -1875,30 +1907,38 @@ class V4L2EventStream:
 
         x = ((x * VIEW_W) // WIDTH).clip(0, VIEW_W - 1)
         y = ((y * VIEW_H) // HEIGHT).clip(0, VIEW_H - 1)
-        off = (pol == 0) | (pol == 4)
-        on = ~off
-        if self.polarity_mode == "ON":
-            off[:] = False
-        elif self.polarity_mode == "OFF":
-            on[:] = False
-
-        radius = max(0, min(4, int(self.point_radius)))
+        timestamp_us = int(time.monotonic() * 1_000_000)
         with self.display_lock:
-            if radius == 0:
-                if np.any(off):
-                    self.display[y[off], x[off]] = self.off_color
-                if np.any(on):
-                    self.display[y[on], x[on]] = self.on_color
-            else:
-                for dy in range(-radius, radius + 1):
-                    yy = (y + dy).clip(0, VIEW_H - 1)
-                    for dx in range(-radius, radius + 1):
-                        xx = (x + dx).clip(0, VIEW_W - 1)
-                        if np.any(off):
-                            self.display[yy[off], xx[off]] = self.off_color
-                        if np.any(on):
-                            self.display[yy[on], xx[on]] = self.on_color
-        return event_count
+            self.surface_ts[y, x] = timestamp_us
+            self.surface_pol[y, x] = pol
+            self.last_event_ts = timestamp_us
+            self.last_event_wall_time = time.monotonic()
+        return int(x.size)
+
+    def _render_surface_frame(self):
+        palette = {
+            "bg": self.bg_color,
+            "on": self.on_color,
+            "off": self.off_color,
+        }
+        bg = np.array(self.bg_color, dtype=np.uint8)
+        frame = np.empty((VIEW_H, VIEW_W, 3), dtype=np.uint8)
+        frame[:, :] = bg
+        now_us = int(time.monotonic() * 1_000_000)
+        window_us = max(1000, int(self.accumulation_us), int(LIVE_MIN_ACCUMULATION_US))
+        cutoff = now_us - window_us
+        with self.display_lock:
+            active = self.surface_ts >= cutoff
+            if self.polarity_mode == "ON":
+                active &= self.surface_pol
+            elif self.polarity_mode == "OFF":
+                active &= ~self.surface_pol
+            if np.any(active):
+                y, x = np.nonzero(active)
+                pol = self.surface_pol[y, x]
+                self.renderer._draw_events(frame, x, y, pol, palette, self.point_radius)
+            self.display[:] = frame
+        return frame
 
 
 class PSE2RecordingPlayer:
@@ -2388,7 +2428,7 @@ class EventCameraApp(Gtk.Window):
         grid.attach(self.osd_check, 0, 2, 2, 1)
 
         hint = self.make_label(
-            "Live preview uses immediate draw-and-decay for responsiveness. Accumulation controls recording playback; use polarity and trail to inspect event balance."
+            "Live preview uses a bounded recent-event surface for responsiveness. Accumulation controls live persistence and recording playback; use polarity to inspect event balance."
         )
         hint.set_xalign(0)
         hint.set_line_wrap(True)

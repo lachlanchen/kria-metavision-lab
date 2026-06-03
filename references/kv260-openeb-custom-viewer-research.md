@@ -118,18 +118,27 @@ These are absolute V4L2 driver values on this board. The official IMX636 SDK doc
 The custom viewer keeps the direct V4L2 capture path because it is the most reliable path on this PetaLinux image. The implementation deliberately separates capture, recording, preview, and recording playback:
 
 - Live capture thread does only the latency-sensitive work: dequeue V4L2 payload, copy it, immediately requeue the V4L2 buffer, enqueue recording bytes if recording is active, and count events.
-- Live preview receives only the newest sampled payload through a one-item queue. If the desktop or GTK is slow, old preview payloads are replaced; recording and capture do not wait for preview.
-- A preview worker draws the sampled payload into the live canvas. A display worker fades/publishes that canvas at a bounded display rate.
+- Live preview receives payload copies through a bounded queue. If the desktop or GTK is slow, old preview payloads are dropped; recording and capture do not wait for preview.
+- A preview worker drains stale queued payloads, keeps the newest few payloads, expands EVT2.1 vector masks, and updates a recent-event time surface. A display worker renders active pixels from that surface at a bounded display rate.
 - Recording playback uses the OpenEB-inspired timestamp accumulation path. This is where the 10 ms accumulation window is useful, because the event timestamps are available in controlled file chunks.
 
-A previous attempt to use the timestamp accumulator for live V4L2 streaming caused the app to show an initial burst of events and then gradually fade/static on the board. The current code therefore avoids the timestamp renderer in the live hot path.
+A previous attempt to use the recording/playback timestamp accumulator directly for live V4L2 streaming caused the app to show an initial burst of events and then gradually fade/static on the board. The current live path therefore uses a wall-clock recent-event surface instead of the playback renderer.
 
-The June 2026 preview regression was caused by a simpler issue: the first fix protected capture, but the default preview settings still asked Python/Gtk to draw too many points per preview update. The measured stable live defaults are:
+The June 2026 preview regression had two concrete causes:
+
+- The custom decoder treated EVT2.1 event types `4` and `5` as CD events. OpenEB's EVT2.1 decoder only treats event types `0` and `1` as CD polarity events; `8` is time-high. The wrong event types polluted the preview and made it look unlike the native viewer.
+- The previous fade-canvas preview could continue publishing frames after useful event pixels had aged out, which looked like the event stream died after a few seconds.
+
+The measured stable live defaults are:
 
 ```text
 KV260_EVENT_MAX_LIVE_DISPLAY_FPS=24
 KV260_EVENT_MAX_LIVE_DRAW_FPS=20
-KV260_EVENT_PREVIEW_CD_WORDS=2048
+KV260_EVENT_PREVIEW_QUEUE_BUFFERS=8
+KV260_EVENT_PREVIEW_PAYLOADS_PER_FRAME=4
+KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME=2
+KV260_EVENT_PREVIEW_CD_WORDS=4096
+KV260_EVENT_LIVE_MIN_ACCUMULATION_US=40000
 Point radius=0
 ```
 
@@ -138,7 +147,8 @@ Point radius=0
 It implements the OpenEB-style parts that matter for daily use:
 
 - Timestamp-aware EVT2.1 decoding.
-- 10 ms default display accumulation for playback.
+- EVT2.1 CD event-type filtering matching OpenEB: type `0` OFF and type `1` ON.
+- 10 ms default display accumulation for playback, with a 40 ms live minimum to avoid display-rate blanking on the lightweight GTK preview.
 - 30 FPS default rendering.
 - Dark/light/gray/cool-warm palettes.
 - ON/OFF/all polarity filtering.

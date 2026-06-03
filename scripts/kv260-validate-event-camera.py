@@ -24,28 +24,46 @@ DEFAULT_RECORD_DIR = pathlib.Path(
 
 
 class FrameStats:
-    def __init__(self, after_seconds=2.0):
+    def __init__(self, after_seconds=2.0, background_rgb=(8, 12, 18)):
         self.started = time.monotonic()
         self.after_seconds = after_seconds
+        self.background = np.array(background_rgb, dtype=np.uint8).reshape((1, 1, 3))
         self.frames = 0
         self.changed = 0
         self.after_frames = 0
         self.after_changed = 0
         self.nonblank = 0
+        self.active_frames = 0
+        self.after_active_frames = 0
+        self.active_total = 0
+        self.after_active_total = 0
+        self.active_last = 0
+        self.active_max = 0
+        self.after_active_max = 0
         self.last = None
 
     def on_frame(self, frame):
         now = time.monotonic()
         copied = frame.copy()
+        active_pixels = int(np.any(copied != self.background, axis=2).sum())
         self.frames += 1
         if np.any(copied):
             self.nonblank += 1
+        if active_pixels > 0:
+            self.active_frames += 1
+        self.active_total += active_pixels
+        self.active_last = active_pixels
+        self.active_max = max(self.active_max, active_pixels)
         if self.last is not None and np.any(self.last != copied):
             self.changed += 1
             if now - self.started >= self.after_seconds:
                 self.after_changed += 1
         if now - self.started >= self.after_seconds:
             self.after_frames += 1
+            self.after_active_total += active_pixels
+            self.after_active_max = max(self.after_active_max, active_pixels)
+            if active_pixels > 0:
+                self.after_active_frames += 1
         self.last = copied
 
     def as_dict(self):
@@ -56,6 +74,13 @@ class FrameStats:
             "after_frames": self.after_frames,
             "after_changed": self.after_changed,
             "nonblank": self.nonblank,
+            "active_frames": self.active_frames,
+            "after_active_frames": self.after_active_frames,
+            "active_total": self.active_total,
+            "after_active_total": self.after_active_total,
+            "active_last": self.active_last,
+            "active_max": self.active_max,
+            "after_active_max": self.after_active_max,
         }
 
 
@@ -147,7 +172,7 @@ def replay_first_chunk(app, path, bytes_to_read=1024 * 1024):
 
 
 def run_live_preview(app, device, duration):
-    frame_stats = FrameStats()
+    frame_stats = FrameStats(background_rgb=app.PALETTES["Dark"]["bg"])
     statuses = []
     renderer = app.EventFrameRenderer()
     stream = app.V4L2EventStream(device, renderer, frame_stats.on_frame, statuses.append)
@@ -172,11 +197,11 @@ def run_live_preview(app, device, duration):
         result["buffers"] > 0
         and result["events"] > 0
         and result["decoded_buffers"] > 0
-        and result["decoded_buffers"] < result["buffers"]
-        and result["skipped_buffers"] > 0
         and result["preview_errors"] == 0
         and result["frames"]["frames"] >= 10
         and result["frames"]["after_changed"] > 0
+        and result["frames"]["after_active_frames"] > 0
+        and result["frames"]["after_active_max"] > 0
         and result["frames"]["nonblank"] > 0
     )
     return result
@@ -185,7 +210,7 @@ def run_live_preview(app, device, duration):
 def run_recording(app, device, record_dir, duration, priority):
     mode = "priority_on" if priority else "priority_off"
     path = record_dir / ("validation_%s_%s.pse2.raw" % (mode, time.strftime("%Y%m%d_%H%M%S")))
-    frame_stats = FrameStats()
+    frame_stats = FrameStats(background_rgb=app.PALETTES["Dark"]["bg"])
     statuses = []
     renderer = app.EventFrameRenderer()
     stream = app.V4L2EventStream(device, renderer, frame_stats.on_frame, statuses.append)
@@ -241,10 +266,9 @@ def run_recording(app, device, record_dir, duration, priority):
     )
     preview_pass = bool(
         result["decoded_buffers"] > 0
-        and result["decoded_buffers"] < result["buffers"]
-        and result["skipped_buffers"] > 0
         and result["frames"]["frames"] >= 5
         and result["frames"]["after_changed"] > 0
+        and result["frames"]["after_active_frames"] > 0
     )
     result["pass"] = bool(common_pass and preview_pass)
     return result
@@ -442,7 +466,7 @@ def write_reports(output_dir, results):
         lines.append("### %s" % item["name"])
         if item["name"] == "live_preview_no_recording":
             lines.append(
-                "- buffers=%s decoded=%s skipped=%s preview_errors=%s frames=%s changed_after_2s=%s"
+                "- buffers=%s decoded=%s skipped=%s preview_errors=%s frames=%s changed_after_2s=%s active_after_2s=%s active_max_after_2s=%s"
                 % (
                     item["buffers"],
                     item["decoded_buffers"],
@@ -450,6 +474,8 @@ def write_reports(output_dir, results):
                     item["preview_errors"],
                     item["frames"]["frames"],
                     item["frames"]["after_changed"],
+                    item["frames"]["after_active_frames"],
+                    item["frames"]["after_active_max"],
                 )
             )
         elif item["name"].startswith("recording_"):
@@ -467,10 +493,11 @@ def write_reports(output_dir, results):
                 )
             )
             lines.append(
-                "- decoded=%s skipped=%s priority=%s replay_events=%s replay_nonblank=%s"
+                "- decoded=%s skipped=%s active_after=%s priority=%s replay_events=%s replay_nonblank=%s"
                 % (
                     item["decoded_buffers"],
                     item["skipped_buffers"],
+                    item["frames"]["after_active_frames"],
                     item["recording_priority"],
                     item["replay"]["events"],
                     item["replay"]["nonblank"],

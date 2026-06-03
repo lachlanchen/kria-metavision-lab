@@ -84,16 +84,18 @@ Pixel format: PSE2, 64-bit Prophesee EVT2.1
 Size: 1280x720
 ```
 
-The app decodes the PSE2/EVT2.1 V4L2 byte stream directly and renders events in a GTK window. The preview expands the EVT2.1 32-bit `vx` vector inside each 64-bit event word, so one event-vector word can draw up to 32 neighboring x positions. This avoids the vertical stripe artifact caused by drawing only the vector base x coordinate.
+The app decodes the PSE2/EVT2.1 V4L2 byte stream directly and renders events in a GTK window. It follows the OpenEB EVT2.1 decoder rule that only event types `0` and `1` are CD polarity events. The preview expands the EVT2.1 32-bit `vx` vector inside each 64-bit event word, so one event-vector word can draw up to 32 neighboring x positions. This avoids the vertical stripe artifact caused by drawing only the vector base x coordinate.
 
-The current app keeps the direct V4L2 live renderer but does not paint from the capture thread. The capture thread counts every payload and queues only the newest sampled payload for preview; a separate preview/display path draws and fades the canvas. Recording playback uses the newer EVT2.1 timestamp path with a Metavision-style accumulation window. This split is intentional: the timestamp accumulator is useful for recordings, but it made the live camera show an initial burst and then fade/static on this board.
+The current app keeps the direct V4L2 live renderer but does not paint from the capture thread. The capture thread dequeues, copies, immediately requeues, records first when recording is active, counts events, and places preview payloads in a bounded queue. The preview worker drains stale queued payloads, keeps only the newest few, updates a recent-event time surface, and renders the active pixels for the live accumulation window. This keeps preview work from blocking recording or V4L2 buffer return, while avoiding the old fade-to-blank display path.
 
 The live-preview defaults are tuned for this KV260 desktop:
 
 ```text
 Display cap: 24 FPS
-Preview draw cap: 20 FPS
-Preview sample cap: 2048 EVT2.1 CD words
+Preview payload cap: 4 newest payloads/frame
+Recording preview cap: 2 newest payloads/frame
+Preview sample cap: 4096 EVT2.1 CD words/payload
+Live minimum accumulation: 40 ms
 Point radius: 0
 ```
 
@@ -115,12 +117,12 @@ Point radius can be increased from the Display tab, but radius `0` is the smooth
 - `Folder`: output folder for recordings.
 - `File`: output filename.
 - `Video node`: V4L2 node, default `/dev/video0`.
-- `Playback accumulation ms`: event time window used for recording playback frames.
+- `Playback accumulation ms`: event time window used for live preview persistence and recording playback frames.
 - `FPS`: live preview and playback refresh target.
 - `Palette`: dark, light, gray, or cool/warm event colors.
 - `Polarity`: show all events, only ON events, or only OFF events.
 - `Point radius`: event dot size. Increase this if the view looks too sparse.
-- `Event trail`: live-display persistence/decay. The default is `0.820`, matching the older working preview behavior.
+- `Event trail`: recording-playback trail/persistence setting. The current live path uses the accumulation window and recent-event surface instead of the old fade buffer.
 - `Playback OSD overlay`: shows source, rate, playback state, and accumulation during recording playback.
 
 The `Biases` tab reads daily-use controls from `/dev/v4l-subdev3`:
@@ -259,7 +261,7 @@ existing .pse2.raw replay decode: 59459 events from first 512 KiB, nonblank rend
 bias probe: bias_diff_on/off, bias_hpf, bias_fo, bias_refr, bias_diff found on /dev/v4l-subdev3
 GUI smoke: starts on DISPLAY=:0 with auto-open disabled and exits through the local command socket
 old commit comparison: 80910d3 live path produced 234925 events, 223 buffers, 122 frames in 5 seconds
-live renderer regression fix: restored immediate draw-and-decay live path; current path produced 268045 events, 217 buffers, 117 frames in 5 seconds
+live renderer regression fix: moved live preview to a bounded recent-event surface; the earlier fix produced 268045 events, 217 buffers, 117 frames in 5 seconds
 live continuity check: after the first 2 seconds, 71 of 71 emitted frames changed instead of fading static
 playback smoke: event_20260531_183748.pse2.raw decoded 59459 events from first 512 KiB and rendered nonblank
 recording hot-loop robustness: payload is now copied, V4L2 buffer is requeued immediately, recording write happens before preview decode
@@ -270,8 +272,11 @@ recording preview decimation: non-recording decoded 174/174 buffers; recording d
 recording status and priority mode: GUI shows MB/buffer/queue/drop counters; priority on decimates preview during recording; priority off decodes every payload after the recorder enqueue
 multilingual import test: 11 language codes found; zh-Hans, zh-Hant, ar, and en fallback verified
 multilingual GUI smoke: DISPLAY=:0, KV260_EVENT_CAMERA_LANG=zh-Hans, auto-open disabled, exited cleanly through the local command socket
-2026-06-02 preview smoothness test: defaults draw_fps=20, display_fps=24, sample=2048, radius=0; 13.05 s, 1111 V4L2 buffers, 36.7M events, 134 preview frames, 133 changed frames, preview_errors=0
-2026-06-02 recording smoke: 98.5 MB written in 463 buffers over 5 s, drops=0, pending=0, write_error=None, preview_errors=0
+2026-06-02 preview fix: EVT2.1 CD decode limited to event types 0/1; live preview now drains stale payloads and renders a bounded recent-event surface instead of the old fade canvas
+2026-06-02 strict validation: /tmp/kv260-event-camera-validation/20260602-194543/report.md
+2026-06-02 live preview strict test: 9 s, 872 V4L2 buffers, 16.5M events, 46 preview frames, 37 changed frames after 2 s, 37 active event frames after 2 s, preview_errors=0
+2026-06-02 recording priority on: 39.3 MB written, 401 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
+2026-06-02 recording priority off: 27.6 MB written, 399 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
 ```
 
 Direct stream test:

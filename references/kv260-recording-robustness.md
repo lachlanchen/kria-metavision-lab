@@ -147,7 +147,7 @@ For recording, preview is not important. Preview should never make recording wor
 
 Simple preview policy:
 
-- Keep the current direct draw-and-decay renderer.
+- Keep the current bounded recent-event preview renderer.
 - During recording, decode preview after the raw payload has already been copied, queued back to the driver, and written.
 - If needed later, decode preview only when a preview frame is due.
 
@@ -463,9 +463,10 @@ GUI_SMOKE rc=0
 Stage 5 mirrors the native Metavision viewer architecture more closely. Native OpenEB feeds camera callbacks into `CDFrameGenerator`, then displays generated frames from a separate loop. The custom GTK app now follows the same separation while staying on the direct V4L2 path:
 
 - the capture thread dequeues, copies, requeues, records, and counts events,
-- a one-item preview queue keeps only the newest sampled payload,
-- the preview worker draws sampled payloads,
-- the display worker fades/publishes the canvas,
+- a bounded preview queue receives payload copies after the recorder enqueue,
+- the preview worker drains stale queued payloads and processes only the newest few,
+- the preview worker updates a recent-event time surface using EVT2.1 CD event types `0` and `1`,
+- the display worker renders active pixels from that surface for the live accumulation window,
 - old preview payloads are dropped by design so capture and recording do not wait for GTK.
 
 Measured defaults:
@@ -473,19 +474,24 @@ Measured defaults:
 ```text
 KV260_EVENT_MAX_LIVE_DISPLAY_FPS=24
 KV260_EVENT_MAX_LIVE_DRAW_FPS=20
-KV260_EVENT_PREVIEW_CD_WORDS=2048
+KV260_EVENT_PREVIEW_QUEUE_BUFFERS=8
+KV260_EVENT_PREVIEW_PAYLOADS_PER_FRAME=4
+KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME=2
+KV260_EVENT_PREVIEW_CD_WORDS=4096
+KV260_EVENT_LIVE_MIN_ACCUMULATION_US=40000
 Point radius=0
 ```
 
 Validation after the patch:
 
 ```text
-live_preview_no_recording: buffers=396 decoded=49 skipped=323 preview_errors=0 frames=50 changed_after_2s=27
-recording_priority_on: file_size=56690128 bytes_written=56690128 buffers=302 drops=0 decoded=51 skipped=353
-recording_priority_off: file_size=59296296 bytes_written=59296296 buffers=269 drops=0 decoded=50 skipped=316
+report: /tmp/kv260-event-camera-validation/20260602-194543/report.md
+live_preview_no_recording: buffers=872 events=16520079 decoded=180 skipped=180 preview_errors=0 frames=46 changed_after_2s=37 active_after_2s=37 active_max_after_2s=6171
+recording_priority_on: file_size=39262496 bytes_written=39262496 buffers=401 drops=0 pending=0 write_error=None decoded=80 skipped=184 active_after=21
+recording_priority_off: file_size=27633760 bytes_written=27633760 buffers=399 drops=0 pending=0 write_error=None decoded=120 skipped=120 active_after=20
 ```
 
-The important pass condition is no preview errors, advancing frames, and zero recording drops. `skipped` preview payloads are expected and healthy in this design.
+The important pass condition is no preview errors, advancing frames, active event pixels still present after the first two seconds, and zero recording drops. `skipped` preview payloads are expected and healthy in this design because preview intentionally drops stale payloads instead of letting GTK delay capture or recording.
 
 ## Separate Converter Direction
 
