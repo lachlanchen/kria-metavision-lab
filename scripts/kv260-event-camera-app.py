@@ -2143,6 +2143,8 @@ class EventCameraApp(Gtk.Window):
         self.latest_frame = np.zeros((VIEW_H, VIEW_W, 3), dtype=np.uint8)
         self.frame_lock = threading.Lock()
         self.pixbuf_data = None
+        self.pixbuf_bytes = None
+        self.pixbuf = None
         self.recording = False
         self.playback_paused = False
         self.status_text = "Ready."
@@ -2517,20 +2519,18 @@ class EventCameraApp(Gtk.Window):
         with self.frame_lock:
             frame = self.latest_frame.copy()
         if frame.size:
-            data = frame.tobytes()
-            self.pixbuf_data = data
-            pixbuf = GdkPixbuf.Pixbuf.new_from_data(
-                data,
+            self.pixbuf_data = frame.tobytes()
+            self.pixbuf_bytes = GLib.Bytes.new(self.pixbuf_data)
+            self.pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
+                self.pixbuf_bytes,
                 GdkPixbuf.Colorspace.RGB,
                 False,
                 8,
                 frame.shape[1],
                 frame.shape[0],
                 frame.shape[1] * 3,
-                None,
-                None,
             )
-            self.image.set_from_pixbuf(pixbuf)
+            self.image.set_from_pixbuf(self.pixbuf)
         return True
 
     def refresh_recording_status(self):

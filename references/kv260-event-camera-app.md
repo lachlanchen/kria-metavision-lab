@@ -275,6 +275,8 @@ multilingual import test: 11 language codes found; zh-Hans, zh-Hant, ar, and en 
 multilingual GUI smoke: DISPLAY=:0, KV260_EVENT_CAMERA_LANG=zh-Hans, auto-open disabled, exited cleanly through the local command socket
 2026-06-02 preview fix: EVT2.1 CD decode limited to event types 0/1; live preview now drains stale payloads and renders a bounded recent-event surface instead of the old fade canvas
 2026-06-02 black-preview follow-up: direct 22 s probe stayed visible through 10-22 s; visible pixels averaged 9809 in 10-15 s and 60760 in 15-22 s
+2026-06-02 GTK display-buffer fix: live image update now uses GLib.Bytes + GdkPixbuf.Pixbuf.new_from_bytes instead of wrapping raw Python bytes with new_from_data
+2026-06-02 board-display screenshot after 90 s: /tmp/kv260-root-screenshot-after-90s.png showed visible event pixels; log still reported buffers=15701, active=8235
 2026-06-02 strict validation: /tmp/kv260-event-camera-validation/20260602-200709/report.md
 2026-06-02 live preview strict test: 18 s, 1800 V4L2 buffers, 24.1M events, 84 preview frames, 37 changed frames after 10 s, 37 active event frames after 10 s, active_max_after_10s=79068, preview_errors=0
 2026-06-02 recording priority on: 21.8 MB written, 400 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s

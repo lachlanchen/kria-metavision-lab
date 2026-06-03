@@ -115,6 +115,12 @@ active_event_max_after_10s=79068
 
 This confirms the smooth preview path is still active when recording is off. The validator now checks real active event pixels after ten seconds when the live test is long enough, instead of only checking that GTK emitted frames. Preview intentionally decodes a bounded newest-payload stream instead of every captured payload, so skipped preview payloads are healthy when buffers, events, changed frames, and active event pixels continue advancing.
 
+The follow-up board-display check after the GTK image buffer fix ran the app for 90 seconds on `DISPLAY=:0`, captured `/tmp/kv260-root-screenshot-after-90s.png`, and confirmed the actual HDMI desktop still showed event pixels. The log at capture time reported:
+
+```text
+Live: 1.72 Mev/s, buffers=15701, active=8235, preview skip=4271
+```
+
 Recording with `Recording Priority` on:
 
 ```text
