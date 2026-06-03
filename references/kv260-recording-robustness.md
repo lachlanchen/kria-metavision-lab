@@ -478,20 +478,21 @@ KV260_EVENT_PREVIEW_QUEUE_BUFFERS=8
 KV260_EVENT_PREVIEW_PAYLOADS_PER_FRAME=4
 KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME=2
 KV260_EVENT_PREVIEW_CD_WORDS=4096
-KV260_EVENT_LIVE_MIN_ACCUMULATION_US=40000
-Point radius=0
+KV260_EVENT_LIVE_MIN_ACCUMULATION_US=200000
+KV260_EVENT_LIVE_MIN_POINT_RADIUS=1
+Point radius control default=0
 ```
 
 Validation after the patch:
 
 ```text
-report: /tmp/kv260-event-camera-validation/20260602-194543/report.md
-live_preview_no_recording: buffers=872 events=16520079 decoded=180 skipped=180 preview_errors=0 frames=46 changed_after_2s=37 active_after_2s=37 active_max_after_2s=6171
-recording_priority_on: file_size=39262496 bytes_written=39262496 buffers=401 drops=0 pending=0 write_error=None decoded=80 skipped=184 active_after=21
-recording_priority_off: file_size=27633760 bytes_written=27633760 buffers=399 drops=0 pending=0 write_error=None decoded=120 skipped=120 active_after=20
+report: /tmp/kv260-event-camera-validation/20260602-200709/report.md
+live_preview_no_recording: buffers=1800 events=24062663 decoded=332 skipped=332 preview_errors=0 frames=84 changed_after_10s=37 active_after_10s=37 active_max_after_10s=79068
+recording_priority_on: file_size=21832336 bytes_written=21832336 buffers=400 drops=0 pending=0 write_error=None decoded=80 skipped=192 active_after=23
+recording_priority_off: file_size=19113608 bytes_written=19113608 buffers=400 drops=0 pending=0 write_error=None decoded=116 skipped=116 active_after=19
 ```
 
-The important pass condition is no preview errors, advancing frames, active event pixels still present after the first two seconds, and zero recording drops. `skipped` preview payloads are expected and healthy in this design because preview intentionally drops stale payloads instead of letting GTK delay capture or recording.
+The important pass condition is no preview errors, advancing frames, active event pixels still present after ten seconds in the long live test, and zero recording drops. `skipped` preview payloads are expected and healthy in this design because preview intentionally drops stale payloads instead of letting GTK delay capture or recording.
 
 ## Separate Converter Direction
 

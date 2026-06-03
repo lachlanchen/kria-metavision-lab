@@ -138,17 +138,18 @@ KV260_EVENT_PREVIEW_QUEUE_BUFFERS=8
 KV260_EVENT_PREVIEW_PAYLOADS_PER_FRAME=4
 KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME=2
 KV260_EVENT_PREVIEW_CD_WORDS=4096
-KV260_EVENT_LIVE_MIN_ACCUMULATION_US=40000
-Point radius=0
+KV260_EVENT_LIVE_MIN_ACCUMULATION_US=200000
+KV260_EVENT_LIVE_MIN_POINT_RADIUS=1
+Point radius control default=0
 ```
 
-`Point radius=0` is important on this ARM desktop. Radius `1` paints a 3x3 block for every event point, which costs about nine times more pixel writes than radius `0` and can make preview fall behind. Users can still increase radius manually when inspection is more important than smoothness.
+The point-radius control default remains `0`, but live preview applies a minimum radius of `1` when not recording. This is a display-only compromise: the direct renderer remained alive after 10 seconds, but the sparse 40 ms/radius-0 view could look black on the HDMI desktop. During recording-priority mode, the automatic minimum radius is disabled unless the user explicitly increases the control.
 
 It implements the OpenEB-style parts that matter for daily use:
 
 - Timestamp-aware EVT2.1 decoding.
 - EVT2.1 CD event-type filtering matching OpenEB: type `0` OFF and type `1` ON.
-- 10 ms default display accumulation for playback, with a 40 ms live minimum to avoid display-rate blanking on the lightweight GTK preview.
+- 10 ms default display accumulation for playback, with a 200 ms live minimum to avoid sparse-display blanking on the lightweight GTK preview.
 - 30 FPS default rendering.
 - Dark/light/gray/cool-warm palettes.
 - ON/OFF/all polarity filtering.

@@ -172,7 +172,8 @@ def replay_first_chunk(app, path, bytes_to_read=1024 * 1024):
 
 
 def run_live_preview(app, device, duration):
-    frame_stats = FrameStats(background_rgb=app.PALETTES["Dark"]["bg"])
+    after_seconds = 10.0 if duration >= 12.0 else 2.0
+    frame_stats = FrameStats(after_seconds=after_seconds, background_rgb=app.PALETTES["Dark"]["bg"])
     statuses = []
     renderer = app.EventFrameRenderer()
     stream = app.V4L2EventStream(device, renderer, frame_stats.on_frame, statuses.append)
@@ -465,16 +466,20 @@ def write_reports(output_dir, results):
     for item in results["checks"]:
         lines.append("### %s" % item["name"])
         if item["name"] == "live_preview_no_recording":
+            after_seconds = item["frames"]["after_seconds"]
             lines.append(
-                "- buffers=%s decoded=%s skipped=%s preview_errors=%s frames=%s changed_after_2s=%s active_after_2s=%s active_max_after_2s=%s"
+                "- buffers=%s decoded=%s skipped=%s preview_errors=%s frames=%s changed_after_%.1fs=%s active_after_%.1fs=%s active_max_after_%.1fs=%s"
                 % (
                     item["buffers"],
                     item["decoded_buffers"],
                     item["skipped_buffers"],
                     item["preview_errors"],
                     item["frames"]["frames"],
+                    after_seconds,
                     item["frames"]["after_changed"],
+                    after_seconds,
                     item["frames"]["after_active_frames"],
+                    after_seconds,
                     item["frames"]["after_active_max"],
                 )
             )

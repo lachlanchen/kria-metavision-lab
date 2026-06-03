@@ -59,7 +59,8 @@ MAX_PREVIEW_CD_WORDS = int(os.environ.get("KV260_EVENT_PREVIEW_CD_WORDS", "4096"
 MAX_PREVIEW_QUEUE_BUFFERS = int(os.environ.get("KV260_EVENT_PREVIEW_QUEUE_BUFFERS", "8"))
 MAX_PREVIEW_PAYLOADS_PER_FRAME = int(os.environ.get("KV260_EVENT_PREVIEW_PAYLOADS_PER_FRAME", "4"))
 MAX_PREVIEW_RECORDING_PAYLOADS_PER_FRAME = int(os.environ.get("KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME", "2"))
-LIVE_MIN_ACCUMULATION_US = int(os.environ.get("KV260_EVENT_LIVE_MIN_ACCUMULATION_US", "40000"))
+LIVE_MIN_ACCUMULATION_US = int(os.environ.get("KV260_EVENT_LIVE_MIN_ACCUMULATION_US", "200000"))
+LIVE_MIN_POINT_RADIUS = int(os.environ.get("KV260_EVENT_LIVE_MIN_POINT_RADIUS", "1"))
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
@@ -1532,6 +1533,7 @@ class V4L2EventStream:
         self.preview_decoded_buffers = 0
         self.preview_skipped_buffers = 0
         self.recording_priority = True
+        self.active_pixels = 0
 
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
@@ -1743,8 +1745,8 @@ class V4L2EventStream:
                         else ""
                     )
                     self.on_status(
-                        "Live: %.2f Mev/s, buffers=%s%s%s"
-                        % (self.rate_mev_s, self.total_buffers, rec, preview_skip)
+                        "Live: %.2f Mev/s, buffers=%s, active=%s%s%s"
+                        % (self.rate_mev_s, self.total_buffers, self.active_pixels, rec, preview_skip)
                     )
         except Exception as exc:
             self.on_status("Camera stream failed: %s" % exc)
@@ -1927,17 +1929,22 @@ class V4L2EventStream:
         now_us = int(time.monotonic() * 1_000_000)
         window_us = max(1000, int(self.accumulation_us), int(LIVE_MIN_ACCUMULATION_US))
         cutoff = now_us - window_us
+        recording_now = self.is_recording()
+        min_radius = 0 if recording_now and self.recording_priority else max(0, int(LIVE_MIN_POINT_RADIUS))
+        radius = max(self.point_radius, min_radius)
         with self.display_lock:
             active = self.surface_ts >= cutoff
             if self.polarity_mode == "ON":
                 active &= self.surface_pol
             elif self.polarity_mode == "OFF":
                 active &= ~self.surface_pol
+            active_count = int(active.sum())
             if np.any(active):
                 y, x = np.nonzero(active)
                 pol = self.surface_pol[y, x]
-                self.renderer._draw_events(frame, x, y, pol, palette, self.point_radius)
+                self.renderer._draw_events(frame, x, y, pol, palette, radius)
             self.display[:] = frame
+            self.active_pixels = active_count
         return frame
 
 

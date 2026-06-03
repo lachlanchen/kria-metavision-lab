@@ -95,11 +95,12 @@ Display cap: 24 FPS
 Preview payload cap: 4 newest payloads/frame
 Recording preview cap: 2 newest payloads/frame
 Preview sample cap: 4096 EVT2.1 CD words/payload
-Live minimum accumulation: 40 ms
-Point radius: 0
+Live minimum accumulation: 200 ms
+Live minimum visual radius: 1 when not recording
+Point radius control default: 0
 ```
 
-Point radius can be increased from the Display tab, but radius `0` is the smooth default because radius `1` paints a 3x3 block per event and costs much more CPU.
+Point radius can be increased from the Display tab. The control default remains `0`, but live preview now applies a minimum visual radius of `1` when not recording so sparse event activity does not look like a black screen. During recording-priority mode, the minimum radius is disabled unless the user explicitly increases the control, keeping recording CPU pressure lower.
 
 ## Controls
 
@@ -273,10 +274,11 @@ recording status and priority mode: GUI shows MB/buffer/queue/drop counters; pri
 multilingual import test: 11 language codes found; zh-Hans, zh-Hant, ar, and en fallback verified
 multilingual GUI smoke: DISPLAY=:0, KV260_EVENT_CAMERA_LANG=zh-Hans, auto-open disabled, exited cleanly through the local command socket
 2026-06-02 preview fix: EVT2.1 CD decode limited to event types 0/1; live preview now drains stale payloads and renders a bounded recent-event surface instead of the old fade canvas
-2026-06-02 strict validation: /tmp/kv260-event-camera-validation/20260602-194543/report.md
-2026-06-02 live preview strict test: 9 s, 872 V4L2 buffers, 16.5M events, 46 preview frames, 37 changed frames after 2 s, 37 active event frames after 2 s, preview_errors=0
-2026-06-02 recording priority on: 39.3 MB written, 401 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
-2026-06-02 recording priority off: 27.6 MB written, 399 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
+2026-06-02 black-preview follow-up: direct 22 s probe stayed visible through 10-22 s; visible pixels averaged 9809 in 10-15 s and 60760 in 15-22 s
+2026-06-02 strict validation: /tmp/kv260-event-camera-validation/20260602-200709/report.md
+2026-06-02 live preview strict test: 18 s, 1800 V4L2 buffers, 24.1M events, 84 preview frames, 37 changed frames after 10 s, 37 active event frames after 10 s, active_max_after_10s=79068, preview_errors=0
+2026-06-02 recording priority on: 21.8 MB written, 400 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
+2026-06-02 recording priority off: 19.1 MB written, 400 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
 ```
 
 Direct stream test:
