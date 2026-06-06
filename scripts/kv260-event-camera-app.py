@@ -61,6 +61,7 @@ MAX_PREVIEW_PAYLOADS_PER_FRAME = int(os.environ.get("KV260_EVENT_PREVIEW_PAYLOAD
 MAX_PREVIEW_RECORDING_PAYLOADS_PER_FRAME = int(os.environ.get("KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME", "2"))
 LIVE_MIN_ACCUMULATION_US = int(os.environ.get("KV260_EVENT_LIVE_MIN_ACCUMULATION_US", "200000"))
 LIVE_MIN_POINT_RADIUS = int(os.environ.get("KV260_EVENT_LIVE_MIN_POINT_RADIUS", "1"))
+LIVE_HOLD_IDLE_SURFACE = os.environ.get("KV260_EVENT_LIVE_HOLD_IDLE_SURFACE", "1").strip().lower() not in ("0", "false", "no", "off")
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
@@ -1928,11 +1929,14 @@ class V4L2EventStream:
         frame[:, :] = bg
         now_us = int(time.monotonic() * 1_000_000)
         window_us = max(1000, int(self.accumulation_us), int(LIVE_MIN_ACCUMULATION_US))
-        cutoff = now_us - window_us
         recording_now = self.is_recording()
         min_radius = 0 if recording_now and self.recording_priority else max(0, int(LIVE_MIN_POINT_RADIUS))
         radius = max(self.point_radius, min_radius)
         with self.display_lock:
+            display_now_us = now_us
+            if LIVE_HOLD_IDLE_SURFACE and self.last_event_ts > 0 and now_us - self.last_event_ts > window_us:
+                display_now_us = self.last_event_ts
+            cutoff = display_now_us - window_us
             active = self.surface_ts >= cutoff
             if self.polarity_mode == "ON":
                 active &= self.surface_pol

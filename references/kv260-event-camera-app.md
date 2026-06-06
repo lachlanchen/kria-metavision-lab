@@ -86,7 +86,7 @@ Size: 1280x720
 
 The app decodes the PSE2/EVT2.1 V4L2 byte stream directly and renders events in a GTK window. It follows the OpenEB EVT2.1 decoder rule that only event types `0` and `1` are CD polarity events. The preview expands the EVT2.1 32-bit `vx` vector inside each 64-bit event word, so one event-vector word can draw up to 32 neighboring x positions. This avoids the vertical stripe artifact caused by drawing only the vector base x coordinate.
 
-The current app keeps the direct V4L2 live renderer but does not paint from the capture thread. The capture thread dequeues, copies, immediately requeues, records first when recording is active, counts events, and places preview payloads in a bounded queue. The preview worker drains stale queued payloads, keeps only the newest few, updates a recent-event time surface, and renders the active pixels for the live accumulation window. This keeps preview work from blocking recording or V4L2 buffer return, while avoiding the old fade-to-blank display path.
+The current app keeps the direct V4L2 live renderer but does not paint from the capture thread. The capture thread dequeues, copies, immediately requeues, records first when recording is active, counts events, and places preview payloads in a bounded queue. The preview worker drains stale queued payloads, keeps only the newest few, updates a recent-event time surface, and renders the active pixels for the live accumulation window. If a burst is followed by a quiet/static scene, the renderer holds the last event-time surface instead of clearing to black. This keeps preview work from blocking recording or V4L2 buffer return, while avoiding the old fade-to-blank display path.
 
 The live-preview defaults are tuned for this KV260 desktop:
 
@@ -97,6 +97,7 @@ Recording preview cap: 2 newest payloads/frame
 Preview sample cap: 4096 EVT2.1 CD words/payload
 Live minimum accumulation: 200 ms
 Live minimum visual radius: 1 when not recording
+Hold idle event surface: on
 Point radius control default: 0
 ```
 
@@ -281,6 +282,8 @@ multilingual GUI smoke: DISPLAY=:0, KV260_EVENT_CAMERA_LANG=zh-Hans, auto-open d
 2026-06-02 live preview strict test: 18 s, 1800 V4L2 buffers, 24.1M events, 84 preview frames, 37 changed frames after 10 s, 37 active event frames after 10 s, active_max_after_10s=79068, preview_errors=0
 2026-06-02 recording priority on: 21.8 MB written, 400 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
 2026-06-02 recording priority off: 19.1 MB written, 400 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
+2026-06-06 cap/burst follow-up: live preview now holds the last event-time surface when no new events arrive after a burst, matching native viewer behavior more closely
+2026-06-06 idle hold validation: /tmp/kv260-event-camera-validation/20260606-062723/report.md; idle_surface_hold PASS, first_visible=42, held_visible=42 after 0.55 s idle
 ```
 
 Direct stream test:

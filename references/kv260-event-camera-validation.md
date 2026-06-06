@@ -1,6 +1,6 @@
 # KV260 Event Camera Validation
 
-Updated: 2026-06-02
+Updated: 2026-06-06
 
 This note documents the repeatable validation pass for the custom KV260 event camera GUI and recorder.
 
@@ -114,6 +114,19 @@ active_event_max_after_10s=79068
 ```
 
 This confirms the smooth preview path is still active when recording is off. The validator now checks real active event pixels after ten seconds when the live test is long enough, instead of only checking that GTK emitted frames. Preview intentionally decodes a bounded newest-payload stream instead of every captured payload, so skipped preview payloads are healthy when buffers, events, changed frames, and active event pixels continue advancing.
+
+Burst followed by idle preview:
+
+```text
+report=/tmp/kv260-event-camera-validation/20260606-062723/report.md
+idle_surface_hold=PASS
+decoded_events=9
+first_visible_pixels=42
+held_visible_pixels=42
+sleep_s=0.55
+```
+
+This targets the transparent-cap case: moving/removing a cap can create an event burst and then a quiet/static scene. The custom live renderer now holds the last event-time surface when no new events arrive, instead of clearing to black on wall-clock timeout.
 
 The follow-up board-display check after the GTK image buffer fix ran the app for 90 seconds on `DISPLAY=:0`, captured `/tmp/kv260-root-screenshot-after-90s.png`, and confirmed the actual HDMI desktop still showed event pixels. The log at capture time reported:
 

@@ -1,6 +1,6 @@
 # KV260 OpenEB Custom Viewer Research
 
-Updated: 2026-06-02
+Updated: 2026-06-06
 
 This note records the research behind the custom KV260 event-camera viewer improvements.
 
@@ -120,6 +120,7 @@ The custom viewer keeps the direct V4L2 capture path because it is the most reli
 - Live capture thread does only the latency-sensitive work: dequeue V4L2 payload, copy it, immediately requeue the V4L2 buffer, enqueue recording bytes if recording is active, and count events.
 - Live preview receives payload copies through a bounded queue. If the desktop or GTK is slow, old preview payloads are dropped; recording and capture do not wait for preview.
 - A preview worker drains stale queued payloads, keeps the newest few payloads, expands EVT2.1 vector masks, and updates a recent-event time surface. A display worker renders active pixels from that surface at a bounded display rate.
+- If a burst is followed by a quiet/static scene, live preview holds the last event-time surface instead of clearing to black. This matches the native viewer behavior more closely for cap/focus/lighting bursts.
 - Recording playback uses the OpenEB-inspired timestamp accumulation path. This is where the 10 ms accumulation window is useful, because the event timestamps are available in controlled file chunks.
 
 A previous attempt to use the recording/playback timestamp accumulator directly for live V4L2 streaming caused the app to show an initial burst of events and then gradually fade/static on the board. The current live path therefore uses a wall-clock recent-event surface instead of the playback renderer.
@@ -140,6 +141,7 @@ KV260_EVENT_PREVIEW_RECORDING_PAYLOADS_PER_FRAME=2
 KV260_EVENT_PREVIEW_CD_WORDS=4096
 KV260_EVENT_LIVE_MIN_ACCUMULATION_US=200000
 KV260_EVENT_LIVE_MIN_POINT_RADIUS=1
+KV260_EVENT_LIVE_HOLD_IDLE_SURFACE=1
 Point radius control default=0
 ```
 

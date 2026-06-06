@@ -171,6 +171,44 @@ def replay_first_chunk(app, path, bytes_to_read=1024 * 1024):
     }
 
 
+def synthetic_evt21_payload():
+    words = [
+        (1 << 60) | (100 << 43) | (100 << 32) | 0x0000000F,
+        (0 << 60) | (200 << 43) | (150 << 32) | 0x00000015,
+        (1 << 60) | (640 << 43) | (360 << 32) | 0x00000003,
+    ]
+    return b"".join(int(word).to_bytes(8, "little") for word in words)
+
+
+def visible_pixels(app, frame):
+    bg = np.array(app.PALETTES["Dark"]["bg"], dtype=np.uint8).reshape((1, 1, 3))
+    return int(np.any(frame != bg, axis=2).sum())
+
+
+def run_idle_surface_hold(app):
+    statuses = []
+    renderer = app.EventFrameRenderer()
+    stream = app.V4L2EventStream("/dev/null", renderer, lambda _frame: None, statuses.append)
+    stream.apply_render_settings(renderer.snapshot_settings())
+    decoded_events = stream._update_preview_surface(synthetic_evt21_payload())
+    first_frame = stream._render_surface_frame()
+    first_visible = visible_pixels(app, first_frame)
+    sleep_s = (max(app.LIVE_MIN_ACCUMULATION_US, stream.accumulation_us) / 1_000_000.0) + 0.35
+    time.sleep(sleep_s)
+    held_frame = stream._render_surface_frame()
+    held_visible = visible_pixels(app, held_frame)
+    return {
+        "name": "idle_surface_hold",
+        "decoded_events": decoded_events,
+        "sleep_s": round(sleep_s, 3),
+        "first_visible_pixels": first_visible,
+        "held_visible_pixels": held_visible,
+        "active_pixels": int(stream.active_pixels),
+        "statuses_tail": statuses[-4:],
+        "pass": bool(decoded_events > 0 and first_visible > 0 and held_visible > 0),
+    }
+
+
 def run_live_preview(app, device, duration):
     after_seconds = 10.0 if duration >= 12.0 else 2.0
     frame_stats = FrameStats(after_seconds=after_seconds, background_rgb=app.PALETTES["Dark"]["bg"])
@@ -521,6 +559,17 @@ def write_reports(output_dir, results):
                     item["stats"].get("stop_elapsed_s"),
                 )
             )
+        elif item["name"] == "idle_surface_hold":
+            lines.append(
+                "- decoded_events=%s first_visible=%s held_visible=%s sleep_s=%s active_pixels=%s"
+                % (
+                    item["decoded_events"],
+                    item["first_visible_pixels"],
+                    item["held_visible_pixels"],
+                    item["sleep_s"],
+                    item["active_pixels"],
+                )
+            )
         elif item["name"] == "launcher_probe":
             lines.append(
                 "- entries_ok=%s scripts_ok=%s executable_ok=%s unexpected=%s"
@@ -588,6 +637,7 @@ def main():
     stopped = [] if args.no_stop_existing else stop_existing_processes()
 
     checks.append(run_writer_sanity(app, output_dir))
+    checks.append(run_idle_surface_hold(app))
     checks.append(run_launcher_probe())
     checks.append(run_bias_probe(app))
     checks.append(run_live_preview(app, args.device, args.live_seconds))
