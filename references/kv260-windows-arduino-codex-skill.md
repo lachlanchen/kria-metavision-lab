@@ -311,3 +311,25 @@ references/windows-arduino-codex-handoff.md
 references/kv260-arduino-cli-control-api.md
 references/kv260-remote-recording-api.md
 ```
+
+## Windows Peer Skill Known By KV260
+
+Windows peer skill known by KV260:
+
+```text
+name: kv260-arduino-event-control
+installed: C:\Users\Administrator\.codex\skills\kv260-arduino-event-control
+repo copy: C:\Users\Administrator\Projects\DualLampHI\skills\kv260-arduino-event-control
+memory doc: C:\Users\Administrator\Projects\DualLampHI\docs\codex_cross_session_memory_cn.md
+```
+
+The two skills should be treated as peers:
+
+```text
+KV260 skill:  /home/petalinux/.codex/skills/kv260-windows-arduino
+Windows skill: C:\Users\Administrator\.codex\skills\kv260-arduino-event-control
+```
+
+When one skill changes machine identity, API ports, repo paths, helper scripts, or experiment-control rules, update the other skill or its reference docs in the same change.
+
+Raw Codex history files and SQLite logs are not the canonical memory. Use curated AGENTS.md, handoff docs, skill files, and helper scripts.
