@@ -69,6 +69,32 @@ C:\Users\Administrator\.codex\skills\kv260-arduino-event-control\SKILL.md
 
 Do not paste raw Codex JSONL into repo docs. If session history is needed, inspect it only by explicit user request and write a sanitized operational summary.
 
+This repo mirrors the Windows `DualLampHI` memory layout:
+
+```text
+docs/codex_cross_session_memory.md
+skills/kv260-windows-arduino/
+references/codex-session-cache-and-cross-memory.md
+```
+
+Windows Codex sessions can be fetched to the private board cache:
+
+```text
+private/windows-codex-history/
+```
+
+This mirrors the Windows-side reciprocal cache:
+
+```text
+C:\Users\Administrator\Projects\DualLampHI\private\kv260-codex-history\
+```
+
+Both `private/` and `.codex-session-cache/` are ignored by git. Use the skill helper rather than manually copying JSONL into tracked folders:
+
+```sh
+/home/petalinux/.codex/skills/kv260-windows-arduino/scripts/fetch-windows-codex-session.sh --session-id 019e6449-7a73-74d3-bd33-154399427cc5
+```
+
 Known JSONL locations:
 
 ```text

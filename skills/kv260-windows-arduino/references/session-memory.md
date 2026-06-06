@@ -13,8 +13,37 @@ Do not treat raw JSONL as durable project memory. It can contain passwords, toke
 1. Read the active `AGENTS.md`.
 2. Use this skill.
 3. Read repo references in `/home/petalinux/Projects/kria-kv260-starter/references`.
-4. Inspect JSONL only when the user explicitly asks or when a specific missing fact cannot be recovered otherwise.
+4. Fetch or inspect JSONL only when the user explicitly asks or when a specific missing fact cannot be recovered otherwise.
 5. Write a short sanitized summary into `AGENTS.md`, a reference doc, or a skill reference.
+
+## Private Board Cache
+
+Raw Windows Codex session JSONL may be copied to the KV260 only under:
+
+```text
+/home/petalinux/Projects/kria-kv260-starter/private/windows-codex-history/
+```
+
+That directory is ignored by git. It is reciprocal to the Windows-side cache:
+
+```text
+C:\Users\Administrator\Projects\DualLampHI\private\kv260-codex-history\
+```
+
+Do not place raw JSONL in `references/`, `docs/`, `skills/`, or any tracked path.
+
+Fetch the known Windows session:
+
+```sh
+/home/petalinux/.codex/skills/kv260-windows-arduino/scripts/fetch-windows-codex-session.sh \
+  --session-id 019e6449-7a73-74d3-bd33-154399427cc5
+```
+
+List Windows sessions without copying:
+
+```sh
+/home/petalinux/.codex/skills/kv260-windows-arduino/scripts/fetch-windows-codex-session.sh --list
+```
 
 ## Known Session Files
 
@@ -54,7 +83,9 @@ sed -n '1,3p' /home/petalinux/.codex/sessions/2026/05/26/rollout-2026-05-26T07-1
 Search for a specific safe term:
 
 ```sh
-rg -n "kv260-windows-arduino|kv260-arduino-event-control|Arduino CLI|COM3" /home/petalinux/.codex/sessions
+rg -n "kv260-windows-arduino|kv260-arduino-event-control|Arduino CLI|COM3" \
+  /home/petalinux/.codex/sessions \
+  /home/petalinux/Projects/kria-kv260-starter/private/windows-codex-history
 ```
 
 ## What To Remember
@@ -67,4 +98,5 @@ rg -n "kv260-windows-arduino|kv260-arduino-event-control|Arduino CLI|COM3" /home
 - Board skill: `/home/petalinux/.codex/skills/kv260-windows-arduino`.
 - Windows skill: `C:\Users\Administrator\.codex\skills\kv260-arduino-event-control`.
 - Versioned Windows skill source: `C:\Users\Administrator\Projects\DualLampHI\skills\kv260-arduino-event-control`.
-
+- Windows mirrors board history under `C:\Users\Administrator\Projects\DualLampHI\private\kv260-codex-history`.
+- KV260 mirrors Windows history under `/home/petalinux/Projects/kria-kv260-starter/private/windows-codex-history`.

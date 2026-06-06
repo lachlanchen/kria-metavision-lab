@@ -6,3 +6,7 @@ __pycache__/
 *.json.tmp
 event-visual/
 recordings/
+.codex-session-cache/
+
+# Private local mirrors and sensitive session history
+private/

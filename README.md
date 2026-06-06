@@ -215,6 +215,9 @@ references/kv260-arduino-cli-control-api.md
 references/windows-arduino-codex-handoff.md
 references/kv260-windows-arduino-situation.md
 references/kv260-windows-arduino-codex-skill.md
+references/codex-session-cache-and-cross-memory.md
+references/windows-codex-private-history-mirror-summary.md
+docs/codex_cross_session_memory.md
 references/kv260-full-setup.md
 references/kv260-file-transfer.md
 references/kv260-desktop-stall-recovery.md

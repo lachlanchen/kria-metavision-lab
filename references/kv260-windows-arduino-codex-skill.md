@@ -59,6 +59,7 @@ kv260-windows-arduino/
   scripts/
     kv260-lab-status.sh
     kv260-record-once.sh
+    fetch-windows-codex-session.sh
     windows-arduino-probe.sh
 ```
 
@@ -353,6 +354,23 @@ windows-arduino-probe.sh: passed
 ```
 
 `kv260-record-once.sh` was not run during skill creation because it intentionally changes camera recording state.
+
+### `fetch-windows-codex-session.sh`
+
+Fetches Windows Codex JSONL into the ignored board-side cache:
+
+```text
+/home/petalinux/Projects/kria-kv260-starter/private/windows-codex-history/
+```
+
+Run:
+
+```sh
+/home/petalinux/.codex/skills/kv260-windows-arduino/scripts/fetch-windows-codex-session.sh \
+  --session-id 019e6449-7a73-74d3-bd33-154399427cc5
+```
+
+This script is for targeted recovery only. Do not commit raw JSONL.
 
 ## Canonical Repo Docs
 

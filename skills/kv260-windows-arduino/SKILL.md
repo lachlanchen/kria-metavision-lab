@@ -165,6 +165,8 @@ autonomous modulation -> phase is not locked without sync signal
 
 Read `references/session-memory.md` when the user asks about Codex conversation history, JSONL files, `AGENTS.md`, or making the Windows and KV260 Codex sessions know each other.
 
+Use `scripts/fetch-windows-codex-session.sh` to pull Windows Codex JSONL into the ignored board cache before targeted inspection.
+
 Do not import raw JSONL into git or skill files. Use the JSONL only to recover targeted facts, then write a sanitized summary.
 
 ## Source Repo Docs
@@ -192,3 +194,20 @@ repo doc:  C:\Users\Administrator\Projects\DualLampHI\docs\codex_cross_session_m
 ```
 
 Keep this KV260 skill and the Windows peer skill aligned when IPs, ports, repo paths, scripts, serial protocols, or experiment workflow rules change. Do not import raw Codex history as normal memory; use curated docs and skills.
+
+## Board Codex History Context
+
+If recent board-side conversation context is needed, the local Codex history is:
+
+```text
+/home/petalinux/.codex/history.jsonl
+```
+
+Use targeted reads only, for example:
+
+```sh
+tail -n 80 /home/petalinux/.codex/history.jsonl
+grep -iE 'arduino|com3|recording api|duallamphi|v-spice|preview' /home/petalinux/.codex/history.jsonl | tail -n 80
+```
+
+Do not treat raw history as canonical state. Confirm with repository files, helper scripts, `/dev/video0` ownership, API status, and Windows Arduino probes.
