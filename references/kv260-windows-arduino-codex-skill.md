@@ -1,0 +1,313 @@
+# KV260 Windows Arduino Codex Skill
+
+Updated: 2026-06-06
+
+This note documents the local Codex skill created for the KV260 / Windows / Arduino lab workflow.
+
+## Skill Location
+
+Installed local skill:
+
+```text
+/home/petalinux/.codex/skills/kv260-windows-arduino
+```
+
+Primary file:
+
+```text
+/home/petalinux/.codex/skills/kv260-windows-arduino/SKILL.md
+```
+
+The skill is installed under `/home/petalinux/.codex/skills` so future Codex sessions on this board can discover it automatically.
+
+## Trigger Purpose
+
+Use this skill when a Codex session needs to:
+
+```text
+coordinate KV260 event recording with Windows Arduino light control
+inspect the KV260 / Windows / Arduino LAN topology
+start, stop, or call the KV260 recording API
+probe Windows Arduino CLI and COM-port state
+reason about Arduino CLI compile/upload/serial-control workflows
+use the four related Windows/KV260 research repos
+diagnose port conflicts, /dev/video0 ownership, Windows firewall, or phase-sync issues
+```
+
+## Skill File Tree
+
+```text
+kv260-windows-arduino/
+  SKILL.md
+  agents/
+    openai.yaml
+  references/
+    topology.md
+    kv260-recording-api.md
+    windows-arduino-control.md
+    repositories.md
+    conflicts.md
+  scripts/
+    kv260-lab-status.sh
+    kv260-record-once.sh
+    windows-arduino-probe.sh
+```
+
+## Bundled References
+
+| File | Purpose |
+| --- | --- |
+| `references/topology.md` | Machine identities, IPs, roles, and reachability checks |
+| `references/kv260-recording-api.md` | KV260 recording API endpoints and `/dev/video0` ownership rules |
+| `references/windows-arduino-control.md` | Arduino CLI usage, serial light protocol, and Windows Arduino API design |
+| `references/repositories.md` | Four repo paths, remotes, commits, and important files |
+| `references/conflicts.md` | Known failure modes: COM port, port split, firewall, camera ownership, phase ambiguity, disk use |
+
+## Bundled Scripts
+
+### `kv260-lab-status.sh`
+
+Read-only status script for the board-side lab state.
+
+Checks:
+
+```text
+KV260 hostname and IPv4
+disk usage
+Windows ping
+Windows SSH hostname
+KV260 event API status
+viewer status
+/dev/video0 owner
+four related repo commits and branch state
+```
+
+Run:
+
+```sh
+/home/petalinux/.codex/skills/kv260-windows-arduino/scripts/kv260-lab-status.sh
+```
+
+Latest observed result:
+
+```text
+KV260 hostname: xilinx-kv260-starterkit-20222
+KV260 IPv4: 192.168.1.250/24
+Windows ping 192.168.1.166: OK
+Windows SSH hostname: CSG1175-P
+KV260 event API: stopped
+board desktop viewer: stopped
+windows-x11 viewer: stopped
+/dev/video0 owners: none
+```
+
+Repo commits observed:
+
+```text
+polarizer:  c82ee94
+DualLampHI: 7966bb6
+OpenHI3.0:  140eb3f
+OpenHI2.0:  8b4a4fc
+```
+
+### `windows-arduino-probe.sh`
+
+Read-only Windows Arduino probe through Windows SSH.
+
+Checks:
+
+```text
+Windows hostname
+arduino-cli version
+arduino-cli board list
+```
+
+Run:
+
+```sh
+/home/petalinux/.codex/skills/kv260-windows-arduino/scripts/windows-arduino-probe.sh
+```
+
+Latest observed result:
+
+```text
+Windows hostname: CSG1175-P
+arduino-cli: 1.4.1
+board list: COM1 serial Serial Port Unknown
+```
+
+Meaning:
+
+```text
+Arduino UNO is still not visible as COM3.
+Fix Windows USB/driver/port detection before controlled Arduino serial experiments.
+```
+
+### `kv260-record-once.sh`
+
+One-shot KV260 recording helper.
+
+Behavior:
+
+```text
+starts KV260 event API if needed
+starts recording with takeover=true and count_events=false
+waits N seconds
+stops recording
+prints JSON result
+```
+
+Run:
+
+```sh
+/home/petalinux/.codex/skills/kv260-windows-arduino/scripts/kv260-record-once.sh --seconds 2 --prefix skill_smoke
+```
+
+This script changes recording state and may stop GUI/native viewers through `takeover=true`. Use it only when recording is intended.
+
+## Communication Methods
+
+### KV260 To Windows
+
+Ping:
+
+```sh
+ping -c 2 192.168.1.166
+```
+
+SSH:
+
+```sh
+ssh -i /home/petalinux/.ssh/id_dropbear_rsa -y Administrator@192.168.1.166 "powershell -NoProfile -Command \"hostname\""
+```
+
+Note: the PetaLinux Dropbear SSH client may ignore OpenSSH options such as `BatchMode=yes`.
+
+### Windows To KV260 Event API
+
+KV260 API URL:
+
+```text
+http://192.168.1.250:8765
+```
+
+Status:
+
+```powershell
+Invoke-RestMethod "http://192.168.1.250:8765/api/v1/status"
+```
+
+Start recording:
+
+```powershell
+$Body = @{
+  prefix = "illumination"
+  takeover = $true
+  count_events = $false
+  metadata = @{ source = "windows-arduino" }
+} | ConvertTo-Json -Depth 8
+
+Invoke-RestMethod -Method Post -ContentType "application/json" -Body $Body "http://192.168.1.250:8765/api/v1/record/start"
+```
+
+Stop recording:
+
+```powershell
+$Stop = @{ close_stream = $true } | ConvertTo-Json
+Invoke-RestMethod -Method Post -ContentType "application/json" -Body $Stop "http://192.168.1.250:8765/api/v1/record/stop"
+```
+
+### Windows Arduino Control
+
+Recommended future Windows API:
+
+```text
+http://192.168.1.166:8780
+```
+
+Keep port `8780` for Windows Arduino control, because KV260 event recording already uses port `8765`.
+
+Core future endpoints:
+
+```text
+GET  /api/v1/arduino/status
+GET  /api/v1/arduino/boards
+POST /api/v1/arduino/serial/connect
+POST /api/v1/arduino/serial/command
+POST /api/v1/light/on
+POST /api/v1/light/off
+POST /api/v1/light/pwm
+POST /api/v1/experiment/run
+```
+
+## Arduino CLI Methods
+
+Run on Windows:
+
+```powershell
+arduino-cli version --json
+arduino-cli config init
+arduino-cli core update-index
+arduino-cli board list --json
+arduino-cli core install arduino:avr
+arduino-cli compile --fqbn arduino:avr:uno C:\path\to\LightController
+arduino-cli upload -p COM3 --fqbn arduino:avr:uno C:\path\to\LightController
+```
+
+Current board-specific sketch:
+
+```text
+Windows:
+C:\Users\Administrator\Projects\DualLampHI\firmware\dual_led_direct_timer1\dual_led_direct_timer1.ino
+
+KV260 clone:
+/home/petalinux/Projects/DualLampHI/firmware/dual_led_direct_timer1/dual_led_direct_timer1.ino
+```
+
+Bootloader burn is advanced and should not be exposed as a normal upload action.
+
+## Known Conflicts
+
+```text
+Arduino has no IP address.
+Arduino COM3 is not currently confirmed; Windows sees only COM1 Unknown.
+KV260 event API should use 192.168.1.250:8765.
+Windows Arduino API should use 192.168.1.166:8780.
+Windows firewall may block inbound KV260 -> Windows control.
+Only one process can own /dev/video0.
+Autonomous LED modulation is not phase-locked to event recording without a sync signal.
+```
+
+## Validation
+
+Skill validation:
+
+```sh
+python3 /home/petalinux/.codex/skills/.system/skill-creator/scripts/quick_validate.py /home/petalinux/.codex/skills/kv260-windows-arduino
+```
+
+Result:
+
+```text
+Skill is valid.
+```
+
+Script smoke checks completed:
+
+```text
+kv260-lab-status.sh: passed
+windows-arduino-probe.sh: passed
+```
+
+`kv260-record-once.sh` was not run during skill creation because it intentionally changes camera recording state.
+
+## Canonical Repo Docs
+
+Detailed project docs remain in:
+
+```text
+references/kv260-windows-arduino-situation.md
+references/windows-arduino-codex-handoff.md
+references/kv260-arduino-cli-control-api.md
+references/kv260-remote-recording-api.md
+```
