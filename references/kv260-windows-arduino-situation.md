@@ -310,6 +310,23 @@ All are under:
 C:\Users\Administrator\Projects
 ```
 
+Cloned onto this KV260 board under:
+
+```text
+/home/petalinux/Projects
+```
+
+Board clone status after 2026-06-06 sync:
+
+| Repo | Board path | Branch | Remote | Size |
+| --- | --- | --- | --- | --- |
+| V-SPICE / polarizer | `/home/petalinux/Projects/polarizer` | `main` | `git@github.com:lachlanchen/V-SPICE.git` | 9.7 MB |
+| DualLampHI | `/home/petalinux/Projects/DualLampHI` | `main` | `git@github.com:lachlanchen/DualLampHI.git` | 24 MB |
+| OpenHI3.0 | `/home/petalinux/Projects/OpenHI3.0` | `main` | `https://github.com/lachlanchen/OpenHI3.0.git` | 120 MB |
+| OpenHI2.0 | `/home/petalinux/Projects/OpenHI2.0` | `main` | `https://github.com/lachlanchen/OpenHI2.0.git` | 188 KB |
+
+All four board working trees were clean immediately after cloning.
+
 ### V-SPICE / polarizer
 
 ```text
@@ -363,6 +380,112 @@ confocal
 openhi-materials
 petalinux
 ```
+
+## Known Problems And Conflicts
+
+These are the important practical problems to keep visible.
+
+### 1. Arduino has no IP address
+
+The Arduino UNO is behind Windows USB serial. KV260 cannot address it directly on the LAN.
+
+Correct communication chain:
+
+```text
+KV260 -> Windows 192.168.1.166 -> Arduino COM port -> LEDs
+```
+
+### 2. Arduino COM port is currently not confirmed
+
+Windows-side note says Arduino was previously on `COM3`, but current detection showed only:
+
+```text
+COM1 Unknown
+```
+
+Before controlled runs, Windows must show the UNO again:
+
+```powershell
+arduino-cli board list
+```
+
+Expected:
+
+```text
+COM3 ... Arduino UNO ... arduino:avr:uno
+```
+
+### 3. Port naming conflict risk
+
+The KV260 event recording API uses:
+
+```text
+http://192.168.1.250:8765
+```
+
+The Windows Arduino API should use:
+
+```text
+http://192.168.1.166:8780
+```
+
+Using `8765` on both hosts would technically work because they are different IP addresses, but it is easy for humans and scripts to confuse. Use `8780` for Windows Arduino control.
+
+### 4. Windows firewall may block KV260-to-Windows control
+
+If KV260 should call the future Windows Arduino API directly, Windows must allow inbound TCP on the chosen port:
+
+```text
+8780
+```
+
+If Windows orchestrates the experiment and calls KV260, this firewall problem is usually avoided.
+
+### 5. Only one process can own the event camera
+
+Only one process should open:
+
+```text
+/dev/video0
+```
+
+Possible owners:
+
+```text
+custom KV260 Event Camera GUI
+native metavision_viewer
+headless recording API
+```
+
+The recording API supports `takeover=true`, which asks the GUI/native viewers to stop first.
+
+### 6. Autonomous mode has phase ambiguity
+
+If Arduino auto-runs LED modulation and KV260 records independently, the event data is usable, but recording start time is not phase-locked to Arduino modulation.
+
+Mitigations:
+
+```text
+infer phase from event pattern
+manually reset Arduino near recording start
+add an optical sync LED visible to the event camera
+```
+
+### 7. Board disk space is okay but not unlimited
+
+After cloning the four repos, the board still had about:
+
+```text
+13 GB free on /
+```
+
+Event recordings can grow quickly. Keep raw recordings under:
+
+```text
+/home/petalinux/event_recordings
+```
+
+and periodically move large runs to Windows if needed.
 
 ## Minimum Metadata To Record Per Experiment
 
