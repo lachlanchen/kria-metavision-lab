@@ -62,6 +62,7 @@ MAX_PREVIEW_RECORDING_PAYLOADS_PER_FRAME = int(os.environ.get("KV260_EVENT_PREVI
 LIVE_MIN_ACCUMULATION_US = int(os.environ.get("KV260_EVENT_LIVE_MIN_ACCUMULATION_US", "200000"))
 LIVE_MIN_POINT_RADIUS = int(os.environ.get("KV260_EVENT_LIVE_MIN_POINT_RADIUS", "1"))
 LIVE_HOLD_IDLE_SURFACE = os.environ.get("KV260_EVENT_LIVE_HOLD_IDLE_SURFACE", "1").strip().lower() not in ("0", "false", "no", "off")
+LIVE_RADIUS_MAX_ACTIVE_PIXELS = int(os.environ.get("KV260_EVENT_LIVE_RADIUS_MAX_ACTIVE_PIXELS", "120000"))
 APP_CONFIG_PATH = os.environ.get(
     "KV260_EVENT_CAMERA_CONFIG",
     os.path.join(os.path.expanduser("~"), ".config", "kv260-event-camera-app.json"),
@@ -1511,6 +1512,7 @@ class V4L2EventStream:
         self.surface_pol = np.zeros((VIEW_H, VIEW_W), dtype=np.bool_)
         self.last_event_ts = 0
         self.last_event_wall_time = 0.0
+        self.last_render_event_ts = 0
         self.display_lock = threading.Lock()
         self.preview_queue = queue.Queue(maxsize=max(1, MAX_PREVIEW_QUEUE_BUFFERS))
         self.point_radius = 0
@@ -1819,6 +1821,7 @@ class V4L2EventStream:
             self.surface_pol.fill(False)
             self.last_event_ts = 0
             self.last_event_wall_time = 0.0
+            self.last_render_event_ts = 0
 
     def _fade_display(self):
         bg = np.array(self.bg_color, dtype=np.float32)
@@ -1934,7 +1937,10 @@ class V4L2EventStream:
         radius = max(self.point_radius, min_radius)
         with self.display_lock:
             display_now_us = now_us
-            if LIVE_HOLD_IDLE_SURFACE and self.last_event_ts > 0 and now_us - self.last_event_ts > window_us:
+            idle_hold = LIVE_HOLD_IDLE_SURFACE and self.last_event_ts > 0 and now_us - self.last_event_ts > window_us
+            if idle_hold:
+                if self.last_render_event_ts == self.last_event_ts and self.active_pixels > 0:
+                    return self.display.copy()
                 display_now_us = self.last_event_ts
             cutoff = display_now_us - window_us
             active = self.surface_ts >= cutoff
@@ -1943,12 +1949,15 @@ class V4L2EventStream:
             elif self.polarity_mode == "OFF":
                 active &= ~self.surface_pol
             active_count = int(active.sum())
+            if active_count > max(1, int(LIVE_RADIUS_MAX_ACTIVE_PIXELS)):
+                radius = 0
             if np.any(active):
                 y, x = np.nonzero(active)
                 pol = self.surface_pol[y, x]
                 self.renderer._draw_events(frame, x, y, pol, palette, radius)
             self.display[:] = frame
             self.active_pixels = active_count
+            self.last_render_event_ts = self.last_event_ts
         return frame
 
 

@@ -118,15 +118,21 @@ This confirms the smooth preview path is still active when recording is off. The
 Burst followed by idle preview:
 
 ```text
-report=/tmp/kv260-event-camera-validation/20260606-062723/report.md
+report=/tmp/kv260-event-camera-validation/20260606-063723/report.md
 idle_surface_hold=PASS
 decoded_events=9
 first_visible_pixels=42
 held_visible_pixels=42
 sleep_s=0.55
+dense_idle_surface_cache=PASS
+dense_active_pixels=518400
+dense_first_render_ms=220.538
+dense_held_render_ms=26.546
 ```
 
-This targets the transparent-cap case: moving/removing a cap can create an event burst and then a quiet/static scene. The custom live renderer now holds the last event-time surface when no new events arrive, instead of clearing to black on wall-clock timeout.
+This targets the transparent-cap case: moving/removing a cap can create a dense event burst and then a quiet/static scene. The custom live renderer now holds the last event-time surface when no new events arrive, instead of clearing to black on wall-clock timeout. Dense held surfaces are cached so the app does not redraw a full-frame burst every display tick.
+
+The board-display update check after the dense-cache fix captured two screenshots five seconds apart and confirmed the actual preview region changed by `31.395%`.
 
 The follow-up board-display check after the GTK image buffer fix ran the app for 90 seconds on `DISPLAY=:0`, captured `/tmp/kv260-root-screenshot-after-90s.png`, and confirmed the actual HDMI desktop still showed event pixels. The log at capture time reported:
 

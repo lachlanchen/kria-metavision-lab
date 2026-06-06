@@ -468,6 +468,7 @@ Stage 5 mirrors the native Metavision viewer architecture more closely. Native O
 - the preview worker updates a recent-event time surface using EVT2.1 CD event types `0` and `1`,
 - the display worker renders active pixels from that surface for the live accumulation window,
 - burst-then-idle previews hold the last event-time surface instead of clearing to black,
+- dense held surfaces are cached instead of redrawn every display tick,
 - old preview payloads are dropped by design so capture and recording do not wait for GTK.
 
 Measured defaults:
@@ -493,6 +494,7 @@ live_preview_no_recording: buffers=1800 events=24062663 decoded=332 skipped=332 
 recording_priority_on: file_size=21832336 bytes_written=21832336 buffers=400 drops=0 pending=0 write_error=None decoded=80 skipped=192 active_after=23
 recording_priority_off: file_size=19113608 bytes_written=19113608 buffers=400 drops=0 pending=0 write_error=None decoded=116 skipped=116 active_after=19
 idle_surface_hold: /tmp/kv260-event-camera-validation/20260606-062723/report.md PASS, first_visible=42, held_visible=42 after 0.55 s idle
+dense_idle_surface_cache: /tmp/kv260-event-camera-validation/20260606-063723/report.md PASS, active_pixels=518400, first_render_ms=220.538, held_render_ms=26.546
 ```
 
 The important pass condition is no preview errors, advancing frames, active event pixels still present after ten seconds in the long live test, and zero recording drops. `skipped` preview payloads are expected and healthy in this design because preview intentionally drops stale payloads instead of letting GTK delay capture or recording.

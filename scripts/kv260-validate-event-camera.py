@@ -209,6 +209,43 @@ def run_idle_surface_hold(app):
     }
 
 
+def run_dense_idle_surface_cache(app):
+    statuses = []
+    renderer = app.EventFrameRenderer()
+    stream = app.V4L2EventStream("/dev/null", renderer, lambda _frame: None, statuses.append)
+    stream.apply_render_settings(renderer.snapshot_settings())
+    timestamp_us = int(time.monotonic() * 1_000_000)
+    with stream.display_lock:
+        stream.surface_ts[:, :] = timestamp_us
+        stream.surface_pol[:, :] = False
+        stream.surface_pol[:, ::2] = True
+        stream.last_event_ts = timestamp_us
+        stream.last_event_wall_time = time.monotonic()
+    first_started = time.monotonic()
+    first_frame = stream._render_surface_frame()
+    first_elapsed = time.monotonic() - first_started
+    sleep_s = (max(app.LIVE_MIN_ACCUMULATION_US, stream.accumulation_us) / 1_000_000.0) + 0.35
+    time.sleep(sleep_s)
+    held_started = time.monotonic()
+    held_frame = stream._render_surface_frame()
+    held_elapsed = time.monotonic() - held_started
+    return {
+        "name": "dense_idle_surface_cache",
+        "active_pixels": int(stream.active_pixels),
+        "first_visible_pixels": visible_pixels(app, first_frame),
+        "held_visible_pixels": visible_pixels(app, held_frame),
+        "first_render_ms": round(first_elapsed * 1000.0, 3),
+        "held_render_ms": round(held_elapsed * 1000.0, 3),
+        "sleep_s": round(sleep_s, 3),
+        "statuses_tail": statuses[-4:],
+        "pass": bool(
+            visible_pixels(app, first_frame) > 0
+            and visible_pixels(app, held_frame) > 0
+            and held_elapsed < max(0.25, first_elapsed)
+        ),
+    }
+
+
 def run_live_preview(app, device, duration):
     after_seconds = 10.0 if duration >= 12.0 else 2.0
     frame_stats = FrameStats(after_seconds=after_seconds, background_rgb=app.PALETTES["Dark"]["bg"])
@@ -570,6 +607,18 @@ def write_reports(output_dir, results):
                     item["active_pixels"],
                 )
             )
+        elif item["name"] == "dense_idle_surface_cache":
+            lines.append(
+                "- active_pixels=%s first_visible=%s held_visible=%s first_render_ms=%s held_render_ms=%s sleep_s=%s"
+                % (
+                    item["active_pixels"],
+                    item["first_visible_pixels"],
+                    item["held_visible_pixels"],
+                    item["first_render_ms"],
+                    item["held_render_ms"],
+                    item["sleep_s"],
+                )
+            )
         elif item["name"] == "launcher_probe":
             lines.append(
                 "- entries_ok=%s scripts_ok=%s executable_ok=%s unexpected=%s"
@@ -638,6 +687,7 @@ def main():
 
     checks.append(run_writer_sanity(app, output_dir))
     checks.append(run_idle_surface_hold(app))
+    checks.append(run_dense_idle_surface_cache(app))
     checks.append(run_launcher_probe())
     checks.append(run_bias_probe(app))
     checks.append(run_live_preview(app, args.device, args.live_seconds))

@@ -284,6 +284,8 @@ multilingual GUI smoke: DISPLAY=:0, KV260_EVENT_CAMERA_LANG=zh-Hans, auto-open d
 2026-06-02 recording priority off: 19.1 MB written, 400 buffers written, drops=0, pending=0, write_error=None, active preview after 2 s
 2026-06-06 cap/burst follow-up: live preview now holds the last event-time surface when no new events arrive after a burst, matching native viewer behavior more closely
 2026-06-06 idle hold validation: /tmp/kv260-event-camera-validation/20260606-062723/report.md; idle_surface_hold PASS, first_visible=42, held_visible=42 after 0.55 s idle
+2026-06-06 dense burst cache validation: /tmp/kv260-event-camera-validation/20260606-063723/report.md; dense_idle_surface_cache PASS, active_pixels=518400, first_render_ms=220.538, held_render_ms=26.546
+2026-06-06 display update check after dense-cache fix: preview region changed 31.395% over 5 s on the actual board display
 ```
 
 Direct stream test:
