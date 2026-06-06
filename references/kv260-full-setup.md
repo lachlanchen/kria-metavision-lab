@@ -36,6 +36,19 @@ Optional Windows setup:
 - verifies the Windows control center scripts with `-CheckOnly`.
 The Windows control center includes the native `Files` tab for Windows/KV260 transfers.
 
+Experiment automation:
+
+- installs the repo scripts needed for the headless recording API,
+- copies `scripts/windows/KV260EventExperimentClient.py` with the Windows control-center files when Windows setup is requested.
+
+Start the API manually when needed:
+
+```sh
+./scripts/kv260-event-camera-api.sh start
+```
+
+The API is documented in `references/kv260-remote-recording-api.md`.
+
 ## Basic Board Setup
 
 From the repo root on the KV260:

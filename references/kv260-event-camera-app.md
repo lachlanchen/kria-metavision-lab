@@ -140,6 +140,46 @@ The tab can refresh live values, apply the edited values, reset defaults, and sa
 
 The app auto-opens the camera when launched from the desktop.
 
+## Headless Recording API
+
+For Windows/Arduino experiments, use the headless API instead of automating GUI clicks:
+
+```text
+scripts/kv260-event-camera-api.py
+scripts/kv260-event-camera-api.sh
+scripts/windows/KV260EventExperimentClient.py
+```
+
+Start the API on the board:
+
+```sh
+cd /home/petalinux/Projects/kria-kv260-starter
+./scripts/kv260-event-camera-api.sh start
+```
+
+Then Windows can call:
+
+```text
+POST /api/v1/record/start
+POST /api/v1/record/stop
+GET /api/v1/recordings/download
+```
+
+The API uses the same `V4L2EventStream` and `RawRecordingWriter` classes as the GUI, but passes:
+
+```text
+preview_enabled=False
+count_events=False
+```
+
+This keeps experiment recording independent from GTK/X11 preview speed. It writes the same `.pse2.raw` plus `.json` sidecar format and can stop the GUI/native viewers first when `takeover=true`.
+
+Full details:
+
+```text
+references/kv260-remote-recording-api.md
+```
+
 ## Language Support
 
 The board custom viewer has a language selector in the header.

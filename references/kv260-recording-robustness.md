@@ -84,6 +84,26 @@ if recording: decode/draw only when a preview frame is due
 emit preview frame when due
 ```
 
+Current headless API order for Windows/Arduino experiments:
+
+```text
+DQBUF
+copy payload bytes
+QBUF immediately
+enqueue copied bytes into bounded recording queue if recording
+skip preview entirely
+skip event counting by default
+```
+
+The API path is in:
+
+```text
+scripts/kv260-event-camera-api.py
+scripts/kv260-event-camera-api.sh
+```
+
+It uses `V4L2EventStream(preview_enabled=False, count_events=False)`. This is now the preferred automation path when Windows controls external illumination or other experiment hardware. The GUI remains the preferred manual preview/playback path.
+
 ## Most Important Simple Improvement
 
 The best first improvement was not a complicated queue/thread redesign. It was just to return the V4L2 buffer to the driver as soon as the payload was copied.

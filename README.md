@@ -95,6 +95,18 @@ Windows also has a single `KV260 Control Center` launcher for the camera, common
 
 Both the board viewer and Windows Control Center support English, Arabic, Spanish, French, Japanese, Korean, Vietnamese, Simplified Chinese, Traditional Chinese, German, and Russian. The board viewer saves its language preference in `/home/petalinux/.config/kv260-event-camera-app.json`; the Windows Control Center saves it in `%APPDATA%\KV260ControlCenter\settings.json`.
 
+For scripted experiments, the repo also provides a headless recording API. This is the recommended path when Windows controls an Arduino light source and needs to trigger KV260 event recording without using the GUI:
+
+| API path | Behavior |
+| --- | --- |
+| `scripts/kv260-event-camera-api.sh start` | Starts a LAN HTTP API on the KV260 |
+| `POST /api/v1/record/start` | Starts raw PSE2 recording with preview disabled |
+| `POST /api/v1/record/stop` | Stops recording, flushes the writer, and returns file paths |
+| `GET /api/v1/recordings/download` | Downloads `.pse2.raw` and `.json` sidecar files |
+| `scripts/windows/KV260EventExperimentClient.py` | Windows client for Arduino light commands, recording trigger, and download |
+
+The API records through the same writer as the GUI, but disables preview and event counting by default so experiment recording gets priority.
+
 Main files:
 
 ```text
@@ -102,15 +114,19 @@ scripts/kv260-event-camera-app.py
 scripts/kv260-event-camera-app.sh
 scripts/kv260-event-camera-switch.sh
 scripts/kv260-event-camera-x11.sh
+scripts/kv260-event-camera-api.py
+scripts/kv260-event-camera-api.sh
 scripts/kv260-remote-gui-app.sh
 scripts/kv260-jupyter-notebook.sh
 scripts/kv260-file-transfer-gui.py
 scripts/kv260-file-transfer-gui.sh
 scripts/windows/Open-KV260EventCamera.ps1
+scripts/windows/KV260EventExperimentClient.py
 scripts/kv260-metavision-viewer-toggle.sh
 scripts/kv260-install-prophesee-desktop.sh
 scripts/kv260-launch-desktop-viewer.sh
 references/kv260-event-camera-app.md
+references/kv260-remote-recording-api.md
 ```
 
 ## What Is Inside
@@ -193,6 +209,7 @@ Useful references:
 ```text
 references/kv260-prophesee-resources.md
 references/kv260-event-camera-app.md
+references/kv260-remote-recording-api.md
 references/kv260-full-setup.md
 references/kv260-file-transfer.md
 references/kv260-desktop-stall-recovery.md

@@ -1497,11 +1497,13 @@ class RawRecordingWriter:
 
 
 class V4L2EventStream:
-    def __init__(self, device, renderer, on_frame, on_status):
+    def __init__(self, device, renderer, on_frame, on_status, preview_enabled=True, count_events=True):
         self.device = device
         self.renderer = renderer
         self.on_frame = on_frame
         self.on_status = on_status
+        self.preview_enabled = bool(preview_enabled)
+        self.count_events_enabled = bool(count_events)
         self.stop_event = threading.Event()
         self.thread = None
         self.frame_thread = None
@@ -1537,6 +1539,7 @@ class V4L2EventStream:
         self.preview_skipped_buffers = 0
         self.recording_priority = True
         self.active_pixels = 0
+        self.last_recording_result = None
 
     def apply_render_settings(self, settings):
         self.point_radius = max(0, min(4, int(settings.get("point_radius", self.point_radius))))
@@ -1563,11 +1566,13 @@ class V4L2EventStream:
         self.preview_errors = 0
         self.preview_decoded_buffers = 0
         self.preview_skipped_buffers = 0
+        self.last_recording_result = None
         self._reset_display()
         self.thread = threading.Thread(target=self._run, daemon=True)
-        self.frame_thread = threading.Thread(target=self._run_frames, daemon=True)
         self.thread.start()
-        self.frame_thread.start()
+        if self.preview_enabled:
+            self.frame_thread = threading.Thread(target=self._run_frames, daemon=True)
+            self.frame_thread.start()
 
     def stop(self):
         self.stop_event.set()
@@ -1605,7 +1610,7 @@ class V4L2EventStream:
         )
         return stats
 
-    def start_recording(self, path):
+    def start_recording(self, path, extra_metadata=None):
         metadata = {
             "created": datetime.now().isoformat(timespec="seconds"),
             "format": "PSEE_EVT21",
@@ -1616,6 +1621,8 @@ class V4L2EventStream:
             "renderer": self.renderer.snapshot_settings(),
             "note": "Raw V4L2 PSE2/EVT2.1 byte stream captured directly from the KV260 event node.",
         }
+        if isinstance(extra_metadata, dict):
+            metadata.update(extra_metadata)
         writer = RawRecordingWriter(path, metadata, self.on_status)
         writer.start()
         with self.record_lock:
@@ -1634,10 +1641,17 @@ class V4L2EventStream:
             self.record_writer = None
             self.record_path = None
         if writer:
-            self._finish_recording(writer)
+            return self._finish_recording(writer)
+        return None
 
     def _finish_recording(self, writer):
         stats = writer.stop()
+        result = {
+            "path": writer.path,
+            "meta_path": writer.meta_path,
+            "stats": stats,
+        }
+        self.last_recording_result = result
         self.on_status(
             "Recording stopped: %s bytes, %s buffers, drops=%s, drain=%.3fs -> %s"
             % (
@@ -1648,6 +1662,7 @@ class V4L2EventStream:
                 writer.path,
             )
         )
+        return result
 
     def _open_device(self):
         self.fd = os.open(self.device, os.O_RDWR | os.O_NONBLOCK)
@@ -1725,8 +1740,9 @@ class V4L2EventStream:
                             self.record_bytes += len(payload)
 
                 try:
-                    events = self._count_events(payload)
-                    self._submit_preview_payload(payload)
+                    events = self._count_events(payload) if self.count_events_enabled else 0
+                    if self.preview_enabled:
+                        self._submit_preview_payload(payload)
                 except Exception as exc:
                     self.preview_errors += 1
                     if self.preview_errors <= 3:
