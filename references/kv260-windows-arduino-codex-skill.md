@@ -20,6 +20,14 @@ Primary file:
 
 The skill is installed under `/home/petalinux/.codex/skills` so future Codex sessions on this board can discover it automatically.
 
+Versioned skill source in this repository:
+
+```text
+skills/kv260-windows-arduino
+```
+
+When changing the skill, update both the installed copy and the versioned copy, then validate the installed copy.
+
 ## Trigger Purpose
 
 Use this skill when a Codex session needs to:
@@ -47,6 +55,7 @@ kv260-windows-arduino/
     windows-arduino-control.md
     repositories.md
     conflicts.md
+    session-memory.md
   scripts/
     kv260-lab-status.sh
     kv260-record-once.sh
@@ -62,6 +71,50 @@ kv260-windows-arduino/
 | `references/windows-arduino-control.md` | Arduino CLI usage, serial light protocol, and Windows Arduino API design |
 | `references/repositories.md` | Four repo paths, remotes, commits, and important files |
 | `references/conflicts.md` | Known failure modes: COM port, port split, firewall, camera ownership, phase ambiguity, disk use |
+| `references/session-memory.md` | How to inspect Codex JSONL safely and keep Windows/KV260 sessions cross-aware |
+
+## Paired Windows Skill
+
+Windows-side local skill:
+
+```text
+C:\Users\Administrator\.codex\skills\kv260-arduino-event-control\SKILL.md
+```
+
+Versioned Windows-side skill source:
+
+```text
+C:\Users\Administrator\Projects\DualLampHI\skills\kv260-arduino-event-control
+```
+
+Latest Windows-side documentation reported by the paired session:
+
+```text
+C:\Users\Administrator\Projects\DualLampHI\docs\kv260_arduino_connection_control_methods_cn.md
+C:\Users\Administrator\Projects\DualLampHI\skills\kv260-arduino-event-control\references\connection_control.md
+```
+
+Windows-side commit reported by the paired session:
+
+```text
+5c7aa69 docs: add KV260 Arduino control methods skill
+```
+
+## Codex Session History
+
+Codex JSONL can be inspected when the user explicitly asks, but raw transcript content should not be copied into this repo or into skills.
+
+Known session files:
+
+```text
+Board:
+/home/petalinux/.codex/sessions/2026/05/26/rollout-2026-05-26T07-14-26-019e64a3-0950-7491-8e3d-57f8541dd1b7.jsonl
+
+Windows:
+C:\Users\Administrator\.codex\sessions\2026\05\26\rollout-2026-05-26T20-36-37-019e6449-7a73-74d3-bd33-154399427cc5.jsonl
+```
+
+Use JSONL as an audit source only. Durable memory belongs in `AGENTS.md`, skill references, and repo docs.
 
 ## Bundled Scripts
 
@@ -333,3 +386,28 @@ Windows skill: C:\Users\Administrator\.codex\skills\kv260-arduino-event-control
 When one skill changes machine identity, API ports, repo paths, helper scripts, or experiment-control rules, update the other skill or its reference docs in the same change.
 
 Raw Codex history files and SQLite logs are not the canonical memory. Use curated AGENTS.md, handoff docs, skill files, and helper scripts.
+
+## Board Codex History JSONL
+
+The board-side Codex history file is:
+
+```text
+/home/petalinux/.codex/history.jsonl
+```
+
+It can help a future session understand recent board-side conversation before deciding how to access hardware. Use only targeted reads such as:
+
+```sh
+tail -n 80 /home/petalinux/.codex/history.jsonl
+grep -iE 'arduino|com3|recording api|duallamphi|v-spice|preview' /home/petalinux/.codex/history.jsonl | tail -n 80
+```
+
+Memory priority remains:
+
+```text
+curated AGENTS.md / skill docs / handoff docs
+then targeted JSONL context
+then verify with actual device and process state
+```
+
+Do not copy or summarize the full JSONL into the repo.

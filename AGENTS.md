@@ -1,61 +1,114 @@
 # Repository Guidelines
 
-## Project Role
-This KV260 repository is the board-side event-camera control environment for OpenHI / DualLampHI / V-SPICE experiments.
+This repository is the KV260-side workspace for the Prophesee event-camera lab.
 
-Current lab split:
+## Operating Context
 
-- KV260 host `xilinx-kv260-starterkit-20222` at `192.168.1.250` records Prophesee event-camera data.
-- Windows host `CSG1175-P` at `192.168.1.166` controls Arduino over USB serial.
-- Arduino has no IP address. It is only reachable through the Windows COM port.
-- KV260 recording API uses `http://192.168.1.250:8765`.
-- Future Windows Arduino API, if implemented, should use `http://192.168.1.166:8780`.
+- Board: AMD/Xilinx Kria KV260 running PetaLinux.
+- Event camera: Prophesee sensor exposed through V4L2, normally `/dev/video0`.
+- Local board host: `xilinx-kv260-starterkit-20222`, currently `192.168.1.250`.
+- Paired Windows host: `CSG1175-P`, currently `192.168.1.166`.
+- Windows owns the USB Arduino serial port for light-control experiments.
 
-## Cross-Session Memory
-Use curated files as memory, not raw Codex session logs.
+Run board commands directly. Do not SSH back into this KV260 from a board-side Codex session.
 
-- KV260 skill: `/home/petalinux/.codex/skills/kv260-windows-arduino`
-- KV260 skill doc: `references/kv260-windows-arduino-codex-skill.md`
-- Windows peer skill: `C:\Users\Administrator\.codex\skills\kv260-arduino-event-control`
-- Windows peer repo copy: `C:\Users\Administrator\Projects\DualLampHI\skills\kv260-arduino-event-control`
-- Windows handoff docs live in `C:\Users\Administrator\Projects\DualLampHI\docs`
+## Project Structure
 
-Do not ingest raw Codex history or SQLite logs wholesale. Prefer handoff docs, skills, helper scripts, and explicit user-approved files.
+- `scripts/` contains the custom viewer, recording API, launchers, desktop setup, recovery tools, and Windows helper scripts.
+- `references/` contains durable research notes and setup records.
+- `docs/assets/` contains README screenshots.
+- `SystemMaintenance/` contains board maintenance scripts.
+- `i18n/` contains multilingual README pages.
 
-## Operating Rules
-- KV260 owns the Prophesee event camera and `/dev/video0`.
-- Only one process can own `/dev/video0`: GUI viewer, native viewer, or recording API.
-- Use `takeover=true` when remote recording should stop viewers first.
-- Windows should be the first controlled-experiment master because Arduino is physically attached to Windows.
-- If KV260 must command Windows, target port `8780`, not the KV260 event API port `8765`.
-- For robust synchronization, prefer an optical sync LED visible to the event camera.
+Keep generated event data out of the repo. Default recordings belong in `/home/petalinux/event_recordings`.
 
 ## Common Commands
 
-Start/check/stop API:
+Start or check the headless recording API:
 
 ```sh
 cd /home/petalinux/Projects/kria-kv260-starter
 ./scripts/kv260-event-camera-api.sh start
 ./scripts/kv260-event-camera-api.sh status
-./scripts/kv260-event-camera-api.sh stop
 ```
 
-Inspect lab status:
+Open, route, or stop viewers:
+
+```sh
+./scripts/kv260-event-camera-switch.sh --board
+./scripts/kv260-event-camera-switch.sh --windows
+./scripts/kv260-event-camera-switch.sh --stop-all
+```
+
+Inspect the Windows/Arduino/KV260 lab state:
 
 ```sh
 /home/petalinux/.codex/skills/kv260-windows-arduino/scripts/kv260-lab-status.sh
-```
-
-Probe Windows Arduino state:
-
-```sh
 /home/petalinux/.codex/skills/kv260-windows-arduino/scripts/windows-arduino-probe.sh
 ```
 
-## Related Repos
-- KV260 repo: `/home/petalinux/Projects/kria-kv260-starter` -> `git@github.com:lachlanchen/kria-metavision-lab.git`
-- Windows DualLampHI: `C:\Users\Administrator\Projects\DualLampHI` -> `git@github.com:lachlanchen/DualLampHI.git`
-- Windows V-SPICE: `C:\Users\Administrator\Projects\polarizer` -> `git@github.com:lachlanchen/V-SPICE.git`
-- Windows OpenHI3.0: `C:\Users\Administrator\Projects\OpenHI3.0`
-- Windows OpenHI2.0: `C:\Users\Administrator\Projects\OpenHI2.0`
+## Skills And Cross-Session Memory
+
+Use the local KV260 skill for Arduino/light-control coordination:
+
+```text
+/home/petalinux/.codex/skills/kv260-windows-arduino/SKILL.md
+```
+
+Versioned source for that skill lives in this repo:
+
+```text
+skills/kv260-windows-arduino
+```
+
+The paired Windows skill is:
+
+```text
+C:\Users\Administrator\.codex\skills\kv260-arduino-event-control\SKILL.md
+```
+
+Do not paste raw Codex JSONL into repo docs. If session history is needed, inspect it only by explicit user request and write a sanitized operational summary.
+
+Known JSONL locations:
+
+```text
+Board:
+/home/petalinux/.codex/sessions/2026/05/26/rollout-2026-05-26T07-14-26-019e64a3-0950-7491-8e3d-57f8541dd1b7.jsonl
+
+Windows:
+C:\Users\Administrator\.codex\sessions\2026\05\26\rollout-2026-05-26T20-36-37-019e6449-7a73-74d3-bd33-154399427cc5.jsonl
+```
+
+## Coordination Rules
+
+- KV260 records events.
+- Windows controls Arduino over USB serial.
+- Arduino has no IP address.
+- KV260 event API uses port `8765`.
+- Future Windows Arduino API should use port `8780`.
+- Only one owner can hold `/dev/video0`.
+- Use `takeover=true` for remote recording when stale viewers may exist.
+- Keep official/raw conversion separate from the live recorder unless a task explicitly changes that design.
+
+## Git Discipline
+
+Commit and push after repo edits unless the user explicitly says not to.
+
+Before committing public-facing docs, avoid adding passwords, tokens, private account credentials, or raw transcript contents.
+
+## Codex History JSONL Decision Rule
+
+The board-side Codex conversation history path is:
+
+```text
+/home/petalinux/.codex/history.jsonl
+```
+
+Use it only for targeted recent context when deciding what happened on the board. Prefer curated docs and skills first:
+
+1. `references/windows-arduino-codex-handoff.md`
+2. `references/kv260-windows-arduino-codex-skill.md`
+3. `/home/petalinux/.codex/skills/kv260-windows-arduino/SKILL.md`
+4. targeted `tail` or `grep` from `/home/petalinux/.codex/history.jsonl`
+
+Do not import full JSONL history, SQLite logs, auth files, or memory databases as canonical project state. Verify important claims against real files, scripts, process state, and devices.
