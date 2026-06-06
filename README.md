@@ -211,6 +211,7 @@ references/kv260-prophesee-resources.md
 references/kv260-event-camera-app.md
 references/kv260-remote-recording-api.md
 references/kv260-arduino-cli-control-api.md
+references/windows-arduino-codex-handoff.md
 references/kv260-full-setup.md
 references/kv260-file-transfer.md
 references/kv260-desktop-stall-recovery.md
