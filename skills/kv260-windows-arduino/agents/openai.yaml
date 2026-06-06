@@ -1,0 +1,4 @@
+interface:
+  display_name: "KV260 Windows Arduino"
+  short_description: "KV260 and Windows Arduino control"
+  default_prompt: "Use the KV260 Windows Arduino skill to inspect the KV260/Windows/Arduino topology, check service status, coordinate event recording, and reason about Arduino light-control workflows."

@@ -135,6 +135,7 @@ references/kv260-remote-recording-api.md
 | --- | --- |
 | `scripts/` | Viewer, launcher, camera scan, desktop, RDP, and recovery helpers |
 | `references/` | Research notes, setup logs, Prophesee links, GUI notes, and deployment docs |
+| `skills/` | Versioned Codex skills for KV260 / Windows / Arduino coordination |
 | `fpga-projects/` | Prophesee FPGA project submodule for KV260 |
 | `petalinux-projects/` | PetaLinux project submodule with the lab GUI/RDP rootfs branch |
 | `linux-sensor-drivers/` | IMX636 and GenX320 Linux sensor driver submodule |
