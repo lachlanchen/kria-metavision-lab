@@ -223,9 +223,18 @@ class RecordingController:
             force_takeover = bool(body.get("force_takeover", False))
             count_events = bool(body.get("count_events", False))
             output_path = self.make_path(body)
-            self.ensure_camera_available(device, takeover=takeover, force_takeover=force_takeover)
-            self.device = device
-            self.start_stream_locked(device, count_events=count_events)
+            if self.stream:
+                if device != self.device:
+                    raise ConflictError(
+                        "camera stream is already open on %s; requested %s"
+                        % (self.device, device)
+                    )
+            else:
+                self.ensure_camera_available(
+                    device, takeover=takeover, force_takeover=force_takeover
+                )
+                self.device = device
+                self.start_stream_locked(device, count_events=count_events)
 
             metadata = {
                 "trigger_source": "kv260-event-camera-api",
