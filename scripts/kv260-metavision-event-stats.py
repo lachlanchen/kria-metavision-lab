@@ -42,7 +42,11 @@ def grow(values: np.ndarray, size: int) -> np.ndarray:
     return expanded
 
 
-def decode(path: Path, bin_us: int, chunk_words: int) -> dict[str, object]:
+def decode(
+    path: Path, bin_us: int, chunk_words: int, *,
+    roi: tuple[int, int, int, int] | None = None,
+    spatial: bool = False,
+) -> dict[str, object]:
     offset, header = raw_payload_offset(path)
     on = np.zeros(0, dtype=np.uint64)
     off = np.zeros(0, dtype=np.uint64)
@@ -59,6 +63,8 @@ def decode(path: Path, bin_us: int, chunk_words: int) -> dict[str, object]:
     remainder = b""
     high_modulus = 1 << 28
     high_wrap_guard = high_modulus // 2
+    spatial_on = np.zeros((720, 1280), dtype=np.uint64) if spatial else None
+    spatial_off = np.zeros((720, 1280), dtype=np.uint64) if spatial else None
 
     with path.open("rb") as handle:
         handle.seek(offset)
@@ -138,10 +144,48 @@ def decode(path: Path, bin_us: int, chunk_words: int) -> dict[str, object]:
             if not np.any(valid):
                 continue
             vectors = vectors[valid]
-            counts = np.sum(
+            x = x[valid]
+            y = y[valid]
+            selected_types = selected_types[valid]
+            word_counts = np.sum(
                 POPCOUNT8[vectors.view(np.uint8).reshape(-1, 4)], axis=1
             ).astype(np.uint64)
+            if roi is None:
+                counts = word_counts
+            else:
+                x0, y0, x1, y1 = roi
+                counts = np.zeros(vectors.size, dtype=np.uint64)
+                row_ok = (y >= y0) & (y < y1)
+                for bit in range(32):
+                    pixel_x = x + bit
+                    bit_set = ((vectors >> np.uint32(bit)) & np.uint32(1)) != 0
+                    counts += (
+                        bit_set & row_ok & (pixel_x >= x0) & (pixel_x < x1)
+                    ).astype(np.uint64)
+            if spatial:
+                polarities_all = selected_types == 1
+                assert spatial_on is not None and spatial_off is not None
+                center_x = np.minimum(x + 15, 1279)
+                flat = y.astype(np.int64) * 1280 + center_x.astype(np.int64)
+                if np.any(polarities_all):
+                    histogram = np.bincount(
+                        flat[polarities_all], weights=word_counts[polarities_all],
+                        minlength=720 * 1280,
+                    ).reshape(720, 1280)
+                    spatial_on += histogram.astype(np.uint64)
+                if np.any(~polarities_all):
+                    histogram = np.bincount(
+                        flat[~polarities_all], weights=word_counts[~polarities_all],
+                        minlength=720 * 1280,
+                    ).reshape(720, 1280)
+                    spatial_off += histogram.astype(np.uint64)
             timestamps = (base[cd][valid] + low[valid]).astype(np.int64)
+            nonzero = counts > 0
+            if not np.any(nonzero):
+                continue
+            counts = counts[nonzero]
+            timestamps = timestamps[nonzero]
+            selected_types = selected_types[nonzero]
             if origin is None:
                 origin = int(np.min(timestamps))
             bins = ((timestamps - origin) // bin_us).astype(np.int64)
@@ -150,7 +194,7 @@ def decode(path: Path, bin_us: int, chunk_words: int) -> dict[str, object]:
                 continue
             bins = bins[keep]
             counts = counts[keep]
-            polarities = (selected_types[valid][keep] == 1)
+            polarities = (selected_types[keep] == 1)
             size = int(np.max(bins)) + 1
             on = grow(on, size)
             off = grow(off, size)
@@ -183,9 +227,26 @@ def decode(path: Path, bin_us: int, chunk_words: int) -> dict[str, object]:
         "span_us": last_timestamp - origin,
         "time_high_wraps": high_wraps,
         "bin_us": bin_us,
+        "roi": list(roi) if roi is not None else None,
+        "spatial_localization": (
+            "vector-weighted x_base+15; horizontal uncertainty <=16 px"
+            if spatial else None
+        ),
         "on": on[:used],
         "off": off[:used],
+        "spatial_on": spatial_on,
+        "spatial_off": spatial_off,
     }
+
+
+def parse_roi(value: str) -> tuple[int, int, int, int]:
+    try:
+        x0, y0, x1, y1 = (int(part) for part in value.split(","))
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("ROI must be x0,y0,x1,y1") from exc
+    if not (0 <= x0 < x1 <= 1280 and 0 <= y0 < y1 <= 720):
+        raise argparse.ArgumentTypeError("ROI must fit 1280x720 and have positive area")
+    return x0, y0, x1, y1
 
 
 def main() -> int:
@@ -194,17 +255,23 @@ def main() -> int:
     parser.add_argument("--output-prefix", type=Path, required=True)
     parser.add_argument("--bin-us", type=int, default=1000)
     parser.add_argument("--chunk-words", type=int, default=1_000_000)
+    parser.add_argument("--roi", type=parse_roi)
+    parser.add_argument("--spatial", action="store_true")
     parser.add_argument("--delete-raw", action="store_true")
     args = parser.parse_args()
     if args.bin_us < 1:
         raise SystemExit("--bin-us must be positive")
-    result = decode(args.raw, args.bin_us, args.chunk_words)
+    result = decode(
+        args.raw, args.bin_us, args.chunk_words, roi=args.roi, spatial=args.spatial,
+    )
     prefix = args.output_prefix
     prefix.parent.mkdir(parents=True, exist_ok=True)
     csv_path = prefix.with_suffix(".csv")
     json_path = prefix.with_suffix(".json")
     on = result.pop("on")
     off = result.pop("off")
+    spatial_on = result.pop("spatial_on")
+    spatial_off = result.pop("spatial_off")
     with csv_path.open("w", newline="", encoding="ascii") as handle:
         writer = csv.writer(handle)
         writer.writerow(["bin_start_us", "on_events", "off_events", "total_events"])
@@ -224,6 +291,10 @@ def main() -> int:
     )
     result["raw"] = str(args.raw)
     result["csv"] = str(csv_path)
+    if args.spatial:
+        spatial_path = prefix.with_name(prefix.name + "_spatial.npz")
+        np.savez_compressed(spatial_path, on=spatial_on, off=spatial_off)
+        result["spatial"] = str(spatial_path)
     json_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     if args.delete_raw:
         args.raw.unlink()
